@@ -14,6 +14,7 @@ args = parser.parse_args()
 
 EVAL_DIR = args.eval_dir
 OPENAI_DIR = args.openai_dir or EVAL_DIR + "/ViT-L-14_openai"
+PAPER_BASELINE_DIR = EVAL_DIR + "/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
 STEP_ALIASES = dict(args.alias)
 
 # Default experiment if none specified
@@ -50,13 +51,13 @@ def load_exp_cols(exp_name, exp_path):
 def sort_key(col):
     part = col.split("/")[-1]
     if part == "final":
-        return (1, float("inf"), "")
+        return (2, float("inf"), "")
     if part.startswith("step_"):
         try:
-            return (0, int(part.split("_")[1]), col)
+            return (1, int(part.split("_")[1]), col)
         except ValueError:
             pass
-    return (0, 0, col)
+    return (0, 0, col)  # named cols (e.g. paper-baseline) sort first
 
 
 def print_table(task_name, openai, all_cols):
@@ -113,6 +114,8 @@ def print_table(task_name, openai, all_cols):
 
 openai = load_results(OPENAI_DIR)
 all_cols = {}
+if os.path.isdir(PAPER_BASELINE_DIR):
+    all_cols["paper-baseline"] = load_results(PAPER_BASELINE_DIR)
 for exp_name, exp_path in args.exp:
     all_cols.update(load_exp_cols(exp_name, exp_path))
 for exp_name, exp_path in args.flat_exp:
