@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('--vision_model', type=str, default='dino', help='Vision model: dino, mlcd')
     parser.add_argument('--output_normalize', action='store_true', default=False)
     parser.add_argument('--batch_size', type=int, default=2048)
-    parser.add_argument('--num_workers', type=int, default=32, help='DataLoader workers')
+    parser.add_argument('--num_workers', type=int, default=16, help='DataLoader workers')
     parser.add_argument('--prefetch_factor', type=int, default=2, help='Batches each worker pre-loads ahead')
 
     return parser.parse_args()
@@ -69,18 +69,24 @@ def parse_args():
 # Read raw bytes from tar shards, sample a fraction, push to preprocess queue.
 
 def reader_worker(shard_list, sample_rate, seed, raw_queues, reader_id):
-    """Read raw image bytes from assigned shards and round-robin to preprocessor queues."""
+    """Read raw image bytes from assigned shards and round-robin to preprocessor queues.
+
+    Streams each tar sequentially (no pre-listing) to avoid random seeks.
+    Uses probabilistic sampling to hit the target sample_rate.
+    """
     rng = random.Random(seed + reader_id)
     n_queues = len(raw_queues)
     idx = 0
     for tar_path in shard_list:
         try:
             with tarfile.open(tar_path, 'r') as tf:
-                members = [m for m in tf if m.isfile() and
-                           m.name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
-                rng.shuffle(members)
-                n_take = max(1, int(len(members) * sample_rate))
-                for member in members[:n_take]:
+                for member in tf:  # sequential stream — no seek-back
+                    if not member.isfile():
+                        continue
+                    if not member.name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                        continue
+                    if rng.random() > sample_rate:
+                        continue
                     try:
                         raw = tf.extractfile(member).read()
                         raw_queues[idx % n_queues].put(raw)
@@ -98,7 +104,11 @@ def reader_worker(shard_list, sample_rate, seed, raw_queues, reader_id):
 # Decode raw bytes to RGB JPEG bytes, push to writer queue.
 
 def preprocessor_worker(raw_queue, jpg_queues, num_reader_sentinels):
-    """Decode raw image bytes to RGB JPEG, round-robin to writer queues."""
+    """Validate and normalize image bytes, round-robin to writer queues.
+
+    Passes RGB JPEG bytes through directly without re-encoding.
+    Only re-encodes images that are not RGB (e.g. grayscale, RGBA, PNG).
+    """
     sentinels_seen = 0
     n_queues = len(jpg_queues)
     idx = 0
@@ -110,10 +120,14 @@ def preprocessor_worker(raw_queue, jpg_queues, num_reader_sentinels):
                 break
             continue
         try:
-            img = Image.open(io.BytesIO(item)).convert('RGB')
-            buf = io.BytesIO()
-            img.save(buf, 'JPEG', quality=95)
-            jpg_queues[idx % n_queues].put(buf.getvalue())
+            img = Image.open(io.BytesIO(item))
+            if img.mode == 'RGB' and img.format == 'JPEG':
+                out = item  # already RGB JPEG — pass through
+            else:
+                buf = io.BytesIO()
+                img.convert('RGB').save(buf, 'JPEG', quality=95)
+                out = buf.getvalue()
+            jpg_queues[idx % n_queues].put(out)
             idx += 1
         except (OSError, Exception):
             pass
