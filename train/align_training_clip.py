@@ -426,10 +426,11 @@ def main(args, rank, local_rank, world_size):
         if tb_writer:
             tb_writer.flush()
             tb_writer.close()
-        torch.save(unwrap_model(model).model.state_dict(),
-                   f'{args.output_dir}/checkpoints/final.pt')
-        torch.save(optimizer.state_dict(),
-                   f'{args.output_dir}/checkpoints/final_opt.pt')
+        if not args.save_epoch_checkpoints:
+            torch.save(unwrap_model(model).model.state_dict(),
+                       f'{args.output_dir}/checkpoints/final.pt')
+            torch.save(optimizer.state_dict(),
+                       f'{args.output_dir}/checkpoints/final_opt.pt')
         if args.output_dir.endswith('_temp'):
             os.rename(args.output_dir, args.output_dir[:-5])
 
