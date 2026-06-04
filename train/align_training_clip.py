@@ -194,7 +194,7 @@ def main(args, rank, local_rank, world_size):
     resuming = bool(args.resume)
     if is_main() and not resuming:
         with open(csv_log_path, 'w') as f:
-            header = 'step,lr,loss,loss_total,cos_sim,emb_var,acc,eval_acc'
+            header = 'step,lr,loss,loss_total,cos_sim,emb_var,emb_var_global,acc,eval_acc'
             if args.enhanced_metrics:
                 header += ',mean_above_thresh,ratio_above_thresh,ratio_below_thresh,masked_loss'
             f.write(header + '\n')
@@ -487,7 +487,19 @@ def train_one_epoch(
 
         with torch.no_grad():
             cos_sim_clean = F.cosine_similarity(embedding_clean, embedding_orig, dim=1).mean()
+            # Variance on rank 0's local batch (128 samples)
             emb_var = embedding_clean.var(dim=0).mean()
+            # Full-batch variance across all ranks via parallel variance formula
+            n = embedding_clean.shape[0]
+            local_mean = embedding_clean.mean(dim=0)
+            local_var = embedding_clean.var(dim=0, unbiased=False)
+            global_mean = local_mean.clone()
+            dist.all_reduce(global_mean, op=dist.ReduceOp.SUM)
+            global_mean /= world_size
+            # E[X^2] - E[X]^2 across ranks: combine via sum of (var + mean^2), then subtract global_mean^2
+            local_mean_sq_var = local_var + local_mean ** 2
+            dist.all_reduce(local_mean_sq_var, op=dist.ReduceOp.SUM)
+            emb_var_global = (local_mean_sq_var / world_size - global_mean ** 2).mean()
             if is_classification:
                 embedding_clean_norm = F.normalize(embedding_clean, dim=1)
                 logits_clean = embedding_clean_norm @ embedding_text_labels_norm
@@ -537,6 +549,7 @@ def train_one_epoch(
                     'penalty_weight': current_pw,
                     'cos-sim-clean': cos_sim_clean.item(),
                     'emb_var': emb_var.item(),
+                    'emb_var_global': emb_var_global.item(),
                     'acc': acc, 'avg/loss': loss_meter.avg, 'avg/acc': acc_meter.avg,
                     'loss_ema': loss_ema, 'loss_ema_pct': loss_ema_pct,
                 }
@@ -560,6 +573,7 @@ def train_one_epoch(
                                  ('train/penalty_weight', current_pw), ('train/lr', lr_),
                                  ('train/cos_sim', cos_sim_clean.item()),
                                  ('train/emb_var', emb_var.item()),
+                                 ('train/emb_var_global', emb_var_global.item()),
                                  ('train/loss_ema', loss_ema), ('train/loss_ema_pct', loss_ema_pct)]:
                         tb_writer.add_scalar(k, v, step_total)
                     if acc is not None:
@@ -574,7 +588,7 @@ def train_one_epoch(
                     eval_acc_str = f'{eval_logs["eval/acc"]:.4f}' if 'eval/acc' in eval_logs else ''
                     acc_str = f'{acc:.4f}' if acc is not None else ''
                     row = f'{step_total},{lr_:.8f},{loss.item():.6f},{loss_total.item():.6f},' \
-                          f'{cos_sim_clean.item():.6f},{emb_var.item():.6f},{acc_str},{eval_acc_str}'
+                          f'{cos_sim_clean.item():.6f},{emb_var.item():.6f},{emb_var_global.item():.6f},{acc_str},{eval_acc_str}'
                     if args.enhanced_metrics and sparsity_metrics:
                         row += f',{sparsity_metrics["sparsity/mean_above_thresh"]:.6f}' \
                                f',{sparsity_metrics["sparsity/ratio_above_thresh"]:.6f}' \
