@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 
@@ -38,28 +39,35 @@ class CLIPVisionTower(nn.Module):
         self.select_layer = args.mm_vision_select_layer
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
 
+        self._is_kuea_ckpt = vision_tower.endswith('.pt') and os.path.isfile(vision_tower)
         if not delay_load:
             self.load_model()
         else:
-            self.cfg_only = CLIPVisionConfig.from_pretrained('clip-vit-large-patch14-336')
+            hf_name = 'openai/clip-vit-large-patch14' if self._is_kuea_ckpt else 'openai/clip-vit-large-patch14-336'
+            self.cfg_only = CLIPVisionConfig.from_pretrained(hf_name)
 
     def load_model(self, non_llava=False, pretrained_ckpt=None, device='cuda'):
+        # Auto-trigger open_clip path for KUEA .pt checkpoints (ViT-L-14, 224px)
+        if getattr(self, '_is_kuea_ckpt', False) and not non_llava:
+            non_llava = True
+            pretrained_ckpt = self.vision_tower_name
 
         self.non_llava = non_llava
         
         if non_llava:
             import open_clip
-            print("using open_clip 336" + pretrained_ckpt)
-            model_orig, _, image_processor = open_clip.create_model_and_transforms('ViT-L-14-336', pretrained='openai')
+            print('using open_clip ViT-L-14 (224px): ' + str(pretrained_ckpt))
+            model_orig, _, _ = open_clip.create_model_and_transforms('ViT-L-14', pretrained='openai')
             vision_model = model_orig.visual
-            if pretrained_ckpt != 'openai':
+            if pretrained_ckpt and pretrained_ckpt != 'openai':
                 vision_model.load_state_dict(torch.load(pretrained_ckpt, map_location='cpu'))
-            self.image_processor = CLIPImageProcessor.from_pretrained('clip-vit-large-patch14-336')  # 224
+            self.image_processor = CLIPImageProcessor.from_pretrained('openai/clip-vit-large-patch14')
             # llava operates on the second to last layer output, so we remove the last layer
-            vision_model.transformer.resblocks = vision_model.transformer.resblocks[:-1]; print("removing last layer of vision model")
+            vision_model.transformer.resblocks = vision_model.transformer.resblocks[:-1]
+            print('removing last layer of vision model')
             model_orig = ClipVisionModel(
                 model=vision_model,
-                normalize=lambda x: x,  # images have to be normalized, e.g. as handled by the llava model wrapper
+                normalize=lambda x: x,
                 all_tokens=True, proj=False
             )
             self.vision_tower = model_orig        

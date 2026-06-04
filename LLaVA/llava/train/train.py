@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import json
 import logging
 import pathlib
+import random
 from typing import Dict, Optional, Sequence, List
 import sys
 import torch
@@ -698,7 +699,10 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            image_path = os.path.join(image_folder, image_file)
+            if not os.path.exists(image_path):
+                return self.__getitem__(random.randint(0, len(self.list_data_dict) - 1))
+            image = Image.open(image_path).convert('RGB')
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size

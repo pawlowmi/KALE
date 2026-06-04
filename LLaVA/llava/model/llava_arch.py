@@ -98,7 +98,12 @@ class LlavaMetaForCausalLM(ABC):
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             if past_key_values is not None and vision_tower is not None and images is not None and input_ids.shape[1] == 1:
-                attention_mask = torch.ones((attention_mask.shape[0], past_key_values[-1][-1].shape[-2] + 1), dtype=attention_mask.dtype, device=attention_mask.device)
+                # Handle both legacy tuple KV cache and transformers DynamicCache
+                if hasattr(past_key_values, 'get_seq_length'):
+                    past_len = past_key_values.get_seq_length()
+                else:
+                    past_len = past_key_values[-1][-1].shape[-2]
+                attention_mask = torch.ones((attention_mask.shape[0], past_len + 1), dtype=attention_mask.dtype, device=attention_mask.device)
             return input_ids, attention_mask, past_key_values, None, labels
 
         if type(images) is list or images.ndim == 5:
