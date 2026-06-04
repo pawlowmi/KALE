@@ -287,7 +287,7 @@ def main(args, rank, local_rank, world_size):
 
     # Trainable model
     model = ClipVisionModel(model=model.visual, normalize=normalize).to(device)
-    model = DDP(model, device_ids=[local_rank])
+    model = DDP(model, device_ids=[local_rank], bucket_cap_mb=200)
 
     # CLIP drift metric — rank 0 only, uses a fresh frozen reference model
     drift_metric = None
