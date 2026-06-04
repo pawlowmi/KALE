@@ -373,10 +373,11 @@ def main(args, rank, local_rank, world_size):
 
     step_total = args.start_step
     epoch = 0
+    loss_ema, loss_initial, loss_initial_buf = None, None, []
     while step_total < args.steps:
         if hasattr(dataloader, 'sampler') and hasattr(dataloader.sampler, 'set_epoch'):
             dataloader.sampler.set_epoch(epoch)
-        step_total = train_one_epoch(
+        step_total, loss_ema, loss_initial, loss_initial_buf = train_one_epoch(
             step_total, model=model,
             model_orig=model_orig if not args.precomputed_dir else None,
             model_dino=model_dino if not args.precomputed_dir else None,
@@ -389,6 +390,7 @@ def main(args, rank, local_rank, world_size):
             tb_writer=tb_writer, precomputed_orig=precomputed_orig,
             precomputed_dino=precomputed_dino, csv_log_path=csv_log_path,
             device=device, drift_metric=drift_metric,
+            loss_ema=loss_ema, loss_initial=loss_initial, loss_initial_buf=loss_initial_buf,
         )
         if is_main():
             print(f'Epoch {epoch} done.')
@@ -416,6 +418,7 @@ def train_one_epoch(
         embedding_text_labels_norm, args, epoch, warmup_steps,
         dynamic_pw=None, tb_writer=None, precomputed_orig=None,
         precomputed_dino=None, csv_log_path=None, device=None, drift_metric=None,
+        loss_ema=None, loss_initial=None, loss_initial_buf=None,
 ):
     if model_orig is not None:
         model_orig.eval()
@@ -429,9 +432,8 @@ def train_one_epoch(
     loss_meter = AverageMeter('loss')
     cos_sim_meter = AverageMeter('cos-sim')
     acc_meter = AverageMeter('acc')
-    loss_ema = None
-    loss_initial = None
-    loss_initial_buf = []
+    if loss_initial_buf is None:
+        loss_initial_buf = []
     ema_decay = 0.99
     epoch_start_time = time.time()
 
@@ -662,7 +664,7 @@ def train_one_epoch(
         if step_total >= args.steps:
             break
 
-    return step_total
+    return step_total, loss_ema, loss_initial, loss_initial_buf
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
