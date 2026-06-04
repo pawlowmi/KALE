@@ -527,7 +527,7 @@ def train_one_epoch(
             # Variance on rank 0's local batch (128 samples)
             emb_var = embedding_clean.var(dim=0).mean()
             # Effective rank on rank 0's local batch
-            sv = torch.linalg.svdvals(embedding_clean)
+            sv = torch.linalg.svdvals(embedding_clean.float())
             sv = sv.clamp(min=1e-8)
             p = sv / sv.sum()
             emb_erank = torch.exp(-(p * p.log()).sum())
@@ -544,7 +544,7 @@ def train_one_epoch(
             emb_var_global = (local_mean_sq_var / world_size - global_mean ** 2).mean()
             if is_classification:
                 embedding_clean_norm = F.normalize(embedding_clean, dim=1)
-                logits_clean = embedding_clean_norm @ embedding_text_labels_norm
+                logits_clean = embedding_clean_norm @ embedding_text_labels_norm.to(embedding_clean.dtype)
                 acc = compute_acc(logits_clean, targets)
                 acc_meter.update(acc, n_samples)
             else:
@@ -567,7 +567,7 @@ def train_one_epoch(
             data_eval, targets_eval = eval_batch[0].to(device), eval_batch[1].to(device)
             with torch.no_grad():
                 embedding_eval_norm = model(data_eval, output_normalize=True)
-                logits_eval = embedding_eval_norm @ embedding_text_labels_norm
+                logits_eval = embedding_eval_norm @ embedding_text_labels_norm.to(embedding_eval_norm.dtype)
                 acc_eval = compute_acc(logits_eval, targets_eval)
             print(f'[eval-acc] {acc_eval:.2f}')
             eval_logs['eval/acc'] = acc_eval
@@ -703,7 +703,7 @@ if __name__ == '__main__':
     else:
         random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
         duration_str = f'{args.steps}steps' if args.steps > 0 else f'{args.epochs}epochs'
-        dpw_str = f'_dpw{args.dynamic_pw}' if args.dynamic_pw > 0 else ''
+        dpw_str = f'_dpw{args.dynamic_pw}_t{args.dynamic_pw_target_ratio}' if args.dynamic_pw > 0 else ''
         eff_bs = args.batch_size * world_size
         args.finetuned_model_name = (
             f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_'

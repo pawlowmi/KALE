@@ -36,7 +36,7 @@ DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 DRIFT_FREQ=${DRIFT_FREQ:-100}
-BF16=${BF16:-False}
+BF16=${BF16:-True}
 
 # Build steps/epochs flag (mutually exclusive)
 if [ "$STEPS" -gt 0 ]; then
@@ -93,8 +93,8 @@ fi
     --experiment_name cc12m-3m \
     --log_freq 1 \
     --eval_freq 1000 \
-    --dataloader_num_workers 8 \
-    --prefetch_factor 10 \
+    --dataloader_num_workers 16 \
+    --prefetch_factor 8 \
     --enable_bs_scaling True \
     --enhanced_metrics False \
     --lam 1e-4 \
