@@ -21,24 +21,25 @@ EVAL_BASE=${EVAL_BASE:-${EXPERIMENTS_DIR/experiments/eval_results}}
 EVAL_N=8
 BF16=${BF16:-True}
 
-# Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET"
+# Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET COSINE_DECAY"
 # Set DYNAMIC_PW=0 to disable dynamic penalty weight.
+# Set COSINE_DECAY=True to enable cosine decay of target ratio.
 EXPERIMENTS=(
-    "128 0.5 2 8 4e-5 100 0.8"
-    "128 0.5 2 8 4e-5 100 0.5"
-    "128 0.5 4 8 4e-5 100 0.5"
+    "128 0.5 8 8 4e-5 100 0.8 False"
+    "128 0.5 8 8 4e-5 100 1.0 True"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────
 
 run_training() {
-    local bs=$1 pw=$2 epochs=$3 warmup_pct=$4 lr=$5 dynamic_pw=$6 dynamic_pw_target=$7
+    local bs=$1 pw=$2 epochs=$3 warmup_pct=$4 lr=$5 dynamic_pw=$6 dynamic_pw_target=$7 cosine_decay=${8:-False}
     echo ""
-    echo "=== Training: BS=$bs PW=$pw EPOCHS=$epochs WARMUP_PCT=$warmup_pct LR=$lr DYNAMIC_PW=$dynamic_pw DYNAMIC_PW_TARGET=$dynamic_pw_target ==="
+    echo "=== Training: BS=$bs PW=$pw EPOCHS=$epochs WARMUP_PCT=$warmup_pct LR=$lr DYNAMIC_PW=$dynamic_pw DYNAMIC_PW_TARGET=$dynamic_pw_target COSINE_DECAY=$cosine_decay ==="
     echo "Started: $(date)"
 
     DEVICES=$DEVICES BS=$bs PW=$pw EPOCHS=$epochs WARMUP_PCT=$warmup_pct LR=$lr \
         DYNAMIC_PW=$dynamic_pw DYNAMIC_PW_TARGET=$dynamic_pw_target \
+        DYNAMIC_PW_COSINE_DECAY=$cosine_decay \
         OUTPUT_DIR=$EXPERIMENTS_DIR BF16=$BF16 \
         bash "$TRAIN_SCRIPT"
 
@@ -81,22 +82,22 @@ echo "Overnight Experiment Chain"
 echo "Started: $(date)"
 echo "Experiments: ${#EXPERIMENTS[@]}"
 for i in "${!EXPERIMENTS[@]}"; do
-    read -r bs pw epochs warmup_pct lr dynamic_pw dynamic_pw_target <<< "${EXPERIMENTS[$i]}"
-    echo "  $((i+1)). BS=$bs PW=$pw EPOCHS=$epochs WARMUP=$warmup_pct% LR=$lr DPW=$dynamic_pw DPW_T=$dynamic_pw_target"
+    read -r bs pw epochs warmup_pct lr dynamic_pw dynamic_pw_target cosine_decay <<< "${EXPERIMENTS[$i]}"
+    echo "  $((i+1)). BS=$bs PW=$pw EPOCHS=$epochs WARMUP=$warmup_pct% LR=$lr DPW=$dynamic_pw DPW_T=$dynamic_pw_target COSINE=$cosine_decay"
 done
 echo "========================================"
 
 COMPLETED_DIRS=()
 
 for i in "${!EXPERIMENTS[@]}"; do
-    read -r bs pw epochs warmup_pct lr dynamic_pw dynamic_pw_target <<< "${EXPERIMENTS[$i]}"
+    read -r bs pw epochs warmup_pct lr dynamic_pw dynamic_pw_target cosine_decay <<< "${EXPERIMENTS[$i]}"
 
     echo ""
     echo "──────────────────────────────────────"
     echo "Experiment $((i+1))/${#EXPERIMENTS[@]}"
     echo "──────────────────────────────────────"
 
-    run_training "$bs" "$pw" "$epochs" "$warmup_pct" "$lr" "$dynamic_pw" "$dynamic_pw_target"
+    run_training "$bs" "$pw" "$epochs" "$warmup_pct" "$lr" "$dynamic_pw" "$dynamic_pw_target" "$cosine_decay"
 
     exp_dir=$(find_latest_experiment "$pw" "$epochs" "$((bs * 8))" "$lr")
     echo "Experiment dir: $exp_dir"

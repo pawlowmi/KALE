@@ -721,7 +721,7 @@ if __name__ == '__main__':
     else:
         random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
         duration_str = f'{args.steps}steps' if args.steps > 0 else f'{args.epochs}epochs'
-        dpw_str = f'_dpw{args.dynamic_pw}_t{args.dynamic_pw_target_ratio}' if args.dynamic_pw > 0 else ''
+        dpw_str = f'_dpw{args.dynamic_pw}_t{args.dynamic_pw_target_ratio}{"_cd" if args.dynamic_pw_cosine_decay else ""}' if args.dynamic_pw > 0 else ''
         eff_bs = args.batch_size * world_size
         args.finetuned_model_name = (
             f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_'
