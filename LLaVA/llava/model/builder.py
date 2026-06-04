@@ -165,7 +165,11 @@ def load_pretrained_model(model_path, model_base, model_name, pretrained_rob_pat
                 model = LlavaMPTForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, **kwargs)
             else:
                 tokenizer = AutoTokenizer.from_pretrained("liuhaotian/llava-v1.5-7b", use_fast=False)
-                model = LlavaLlamaForCausalLM.from_pretrained("liuhaotian/llava-v1.5-7b", low_cpu_mem_usage=True, **kwargs)
+                model = LlavaLlamaForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, **kwargs)
+                # Auto-detect KUEA vision tower from merged model config
+                kuea_vt = getattr(model.config, 'kuea_vision_tower', None)
+                if kuea_vt and pretrained_rob_path in (None, 'None', 'none'):
+                    pretrained_rob_path = kuea_vt
     else:
         # Load language model
         if model_base is not None:
@@ -204,7 +208,7 @@ def load_pretrained_model(model_path, model_base, model_name, pretrained_rob_pat
         # vision_tower.set_device(device)
         non_llava = True if pretrained_rob_path not in [None, 'None', 'none'] else False
         if not vision_tower.is_loaded:
-            vision_tower.load_model(non_llava, pretrained_rob_path)#.to(device=device)
+            vision_tower.load_model(non_llava, pretrained_rob_path)
 
         # print(vision_tower.vision_tower)
         vision_tower.to(device=device, dtype=kwargs["torch_dtype"])

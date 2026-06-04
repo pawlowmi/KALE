@@ -7,6 +7,10 @@ def merge_lora(args):
     model_name = get_model_name_from_path(args.model_path)
     tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, args.model_base, model_name, dtype='float16', pretrained_rob_path=args.vision_tower, device_map='cpu')
 
+    # Save the KUEA vision tower path in config so inference can reload it correctly
+    if args.vision_tower and args.vision_tower not in (None, 'None', 'none'):
+        model.config.kuea_vision_tower = args.vision_tower
+
     model.save_pretrained(args.save_model_path)
     tokenizer.save_pretrained(args.save_model_path)
 

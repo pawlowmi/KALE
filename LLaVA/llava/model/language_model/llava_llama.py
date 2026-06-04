@@ -117,7 +117,12 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
     def prepare_inputs_for_generation(
         self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
     ):
-        if past_key_values:
+        # Handle both legacy tuple KV cache and transformers DynamicCache
+        has_past = past_key_values is not None and (
+            (hasattr(past_key_values, 'get_seq_length') and past_key_values.get_seq_length() > 0)
+            or (not hasattr(past_key_values, 'get_seq_length') and len(past_key_values) > 0)
+        )
+        if has_past:
             input_ids = input_ids[:, -1:]
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
