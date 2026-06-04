@@ -4,21 +4,21 @@ set -e
 # ── Configure experiments here ───────────────────────────────────────────────
 
 LORA_CHECKPOINTS=(
-    "llava-v1.5-7b-lora-ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
     "llava-v1.5-7b-lora-ViT-L-14_openai_cc12m_l2_2epochs_bs1024_pw0.5_dpw100_t0.8_lr0.0001_cc12m-3m_ntKBz"
     "llava-v1.5-7b-lora-ViT-L-14_openai_cc12m_l2_2epochs_bs1024_pw0.5_dpw100_t0.8_lr0.0001_cc12m-3m-cap-lr-20_AaApf"
+    "llava-v1.5-7b-lora-ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
 )
 
 CLIP_CHECKPOINTS=(
-    "ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
     "ViT-L-14_openai_cc12m_l2_2epochs_bs1024_pw0.5_dpw100_t0.8_lr0.0001_cc12m-3m_ntKBz"
     "ViT-L-14_openai_cc12m_l2_2epochs_bs1024_pw0.5_dpw100_t0.8_lr0.0001_cc12m-3m-cap-lr-20_AaApf"
+    "ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
 )
 
 STEPS=(
-    "final.pt"
     "step_4025.pt"
     "step_4830.pt"
+    "final.pt"
 )
 
 # ── Settings ─────────────────────────────────────────────────────────────────
