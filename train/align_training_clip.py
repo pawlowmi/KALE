@@ -628,6 +628,9 @@ def train_one_epoch(
                             tb_writer.add_scalar(k, v, step_total)
                     if 'eval/acc' in eval_logs:
                         tb_writer.add_scalar('eval/acc', eval_logs['eval/acc'], step_total)
+                    for k, v in eval_logs.items():
+                        if k != 'eval/acc':
+                            tb_writer.add_scalar(k, v, step_total)
                     tb_writer.flush()
                 with open(csv_log_path, 'a') as f:
                     eval_acc_str = f'{eval_logs["eval/acc"]:.4f}' if 'eval/acc' in eval_logs else ''
