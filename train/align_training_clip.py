@@ -374,6 +374,7 @@ def main(args, rank, local_rank, world_size):
     step_total = args.start_step
     epoch = 0
     loss_ema, loss_initial, loss_initial_buf = None, None, []
+    scaler = torch.cuda.amp.GradScaler(enabled=args.bf16)
     while step_total < args.steps:
         if hasattr(dataloader, 'sampler') and hasattr(dataloader.sampler, 'set_epoch'):
             dataloader.sampler.set_epoch(epoch)
@@ -391,6 +392,7 @@ def main(args, rank, local_rank, world_size):
             precomputed_dino=precomputed_dino, csv_log_path=csv_log_path,
             device=device, drift_metric=drift_metric,
             loss_ema=loss_ema, loss_initial=loss_initial, loss_initial_buf=loss_initial_buf,
+            scaler=scaler,
         )
         if is_main():
             print(f'Epoch {epoch} done.')
@@ -418,7 +420,7 @@ def train_one_epoch(
         embedding_text_labels_norm, args, epoch, warmup_steps,
         dynamic_pw=None, tb_writer=None, precomputed_orig=None,
         precomputed_dino=None, csv_log_path=None, device=None, drift_metric=None,
-        loss_ema=None, loss_initial=None, loss_initial_buf=None,
+        loss_ema=None, loss_initial=None, loss_initial_buf=None, scaler=None,
 ):
     if model_orig is not None:
         model_orig.eval()
@@ -477,30 +479,32 @@ def train_one_epoch(
             del embedding_dino
 
         model.train()
-        embedding_clean = model(data, output_normalize=args.output_normalize)
+        amp_dtype = torch.bfloat16 if args.bf16 else torch.float32
+        with torch.autocast(device_type='cuda', dtype=amp_dtype, enabled=args.bf16):
+            embedding_clean = model(data, output_normalize=args.output_normalize)
 
-        loss_clean = compute_loss(
-            loss_str=args.loss_clean, embedding=embedding_clean, targets=targets,
-            embedding_orig=embedding_orig, logit_scale=100.)
+            loss_clean = compute_loss(
+                loss_str=args.loss_clean, embedding=embedding_clean, targets=targets,
+                embedding_orig=embedding_orig, logit_scale=100.)
 
-        if args.kernel_clip == 'gaussian':
-            k_clip = torch.cdist(embedding_clean, embedding_clean, p=2.0)
-            k_clip = torch.exp(-k_clip ** 2 / (2 * projector_clip ** 2))
-        elif args.kernel_clip == 'polynomial':
-            k_clip = ((embedding_clean @ embedding_clean.T) * projector_clip[0] + projector_clip[1]) ** 3
-            diag = k_clip.diag().clamp(min=1e-8)
-            k_clip = k_clip / torch.sqrt(diag.view(-1, 1) * diag.view(1, -1))
-        elif args.kernel_clip == 'cosine':
-            norm_X = F.normalize(embedding_clean, dim=1)
-            k_clip = norm_X @ norm_X.T
+            if args.kernel_clip == 'gaussian':
+                k_clip = torch.cdist(embedding_clean, embedding_clean, p=2.0)
+                k_clip = torch.exp(-k_clip ** 2 / (2 * projector_clip ** 2))
+            elif args.kernel_clip == 'polynomial':
+                k_clip = ((embedding_clean @ embedding_clean.T) * projector_clip[0] + projector_clip[1]) ** 3
+                diag = k_clip.diag().clamp(min=1e-8)
+                k_clip = k_clip / torch.sqrt(diag.view(-1, 1) * diag.view(1, -1))
+            elif args.kernel_clip == 'cosine':
+                norm_X = F.normalize(embedding_clean, dim=1)
+                k_clip = norm_X @ norm_X.T
 
-        diff_sq = (k_clip - k_dino) ** 2
-        sparsity_metrics = {}
-        if args.enhanced_metrics:
-            with torch.no_grad():
-                sparsity_metrics = compute_kernel_sparsity(diff_sq, threshold=args.lam)
+            diff_sq = (k_clip - k_dino) ** 2
+            sparsity_metrics = {}
+            if args.enhanced_metrics:
+                with torch.no_grad():
+                    sparsity_metrics = compute_kernel_sparsity(diff_sq, threshold=args.lam)
 
-        loss = torch.mean(diff_sq)
+            loss = torch.mean(diff_sq)
 
         with torch.no_grad():
             current_pw = args.penalty_weight
@@ -511,8 +515,9 @@ def train_one_epoch(
             loss_ratio = (current_pw * loss.item()) / eff_clean if eff_clean > 0 else 0.0
 
         loss_total = args.clean_weight * loss_clean + current_pw * loss
-        loss_total.backward()
-        optimizer.step()
+        scaler.scale(loss_total).backward()
+        scaler.step(optimizer)
+        scaler.update()
         optimizer.zero_grad()
         step_total += 1
         scheduler(step_total)

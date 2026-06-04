@@ -36,6 +36,7 @@ DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 DRIFT_FREQ=${DRIFT_FREQ:-100}
+BF16=${BF16:-False}
 
 # Build steps/epochs flag (mutually exclusive)
 if [ "$STEPS" -gt 0 ]; then
@@ -99,4 +100,5 @@ fi
     --lam 1e-4 \
     --dynamic_pw $DYNAMIC_PW \
     --dynamic_pw_target_ratio $DYNAMIC_PW_TARGET \
-    --drift_freq $DRIFT_FREQ
+    --drift_freq $DRIFT_FREQ \
+    --bf16 $BF16

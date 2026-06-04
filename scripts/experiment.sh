@@ -19,11 +19,13 @@ EVAL_SCRIPT=/mnt/data/code/KUEA/scripts/run_eval_checkpoints.sh
 EXPERIMENTS_DIR=${EXPERIMENTS_DIR:-/mnt/data/experiments}
 EVAL_BASE=${EVAL_BASE:-${EXPERIMENTS_DIR/experiments/eval_results}}
 EVAL_N=8
+BF16=${BF16:-True}
 
 # Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET"
 # Set DYNAMIC_PW=0 to disable dynamic penalty weight.
 EXPERIMENTS=(
     "128 0.5 2 8 4e-5 100 0.8"
+    "128 0.5 2 8 4e-5 100 0.5"
     "128 0.5 4 8 4e-5 100 0.5"
 )
 
@@ -37,7 +39,7 @@ run_training() {
 
     DEVICES=$DEVICES BS=$bs PW=$pw EPOCHS=$epochs WARMUP_PCT=$warmup_pct LR=$lr \
         DYNAMIC_PW=$dynamic_pw DYNAMIC_PW_TARGET=$dynamic_pw_target \
-        OUTPUT_DIR=$EXPERIMENTS_DIR \
+        OUTPUT_DIR=$EXPERIMENTS_DIR BF16=$BF16 \
         bash "$TRAIN_SCRIPT"
 
     echo "Finished: $(date)"

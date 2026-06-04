@@ -75,6 +75,7 @@ def parse_args():
 
     # Device
     parser.add_argument('--devices', type=str, default='', help='Device IDs for CUDA')
+    parser.add_argument('--bf16', type=str2bool, default=False, help='Use bfloat16 mixed precision')
 
     return parser.parse_args()
 
