@@ -38,7 +38,9 @@ if [ -n "$DEVICES" ]; then
     export CUDA_VISIBLE_DEVICES=$DEVICES
 fi
 
-/home/ec2-user/miniconda3/envs/myenv/bin/python -u -m train.align_training_clip \
+NUM_GPUS=$(echo "$DEVICES" | tr ',' '\n' | wc -l)
+
+/home/ec2-user/miniconda3/envs/myenv/bin/torchrun --nproc_per_node=$NUM_GPUS --master_port=29500 -m train.align_training_clip \
     --clip_model_name ViT-L-14 \
     --pretrained openai \
     --vision_model dino \

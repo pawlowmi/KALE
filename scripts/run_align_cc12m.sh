@@ -48,6 +48,9 @@ if [ -n "$DEVICES" ]; then
     export CUDA_VISIBLE_DEVICES=$DEVICES
 fi
 
+# Count GPUs
+NUM_GPUS=$(echo "$DEVICES" | tr ',' '\n' | wc -l)
+
 # Mode-specific flags
 if [ "$MODE" = "live" ]; then
     MODE_FLAGS="--cc12m_shards $CC12M_SHARDS"
@@ -56,7 +59,7 @@ else
 fi
 
 # Train on CC12M, eval on ImageNet val for meaningful zero-shot accuracy.
-/home/ec2-user/miniconda3/envs/myenv/bin/python -u -m train.align_training_clip \
+/home/ec2-user/miniconda3/envs/myenv/bin/torchrun --nproc_per_node=$NUM_GPUS --master_port=29500 -m train.align_training_clip \
     --clip_model_name ViT-L-14 \
     --pretrained openai \
     --vision_model dino \
