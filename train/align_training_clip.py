@@ -33,6 +33,7 @@ parser.add_argument('--dataset', type=str, default='imagenet')
 parser.add_argument('--template', type=str, default='std')
 parser.add_argument('--imagenet_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
 parser.add_argument('--imagenet21k_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
+parser.add_argument('--cc12m_root', type=str, default='/mnt/data/datasets/cc12m/shards', help='CC12M webdataset shards directory')
 parser.add_argument('--vision_model', type=str, default='dino')
 parser.add_argument('--output_normalize', type=str2bool, default=False, help='Whether the embedding is normalized')
 parser.add_argument('--start_step', type=int, default=0, help='Start step for training')
@@ -152,6 +153,8 @@ def main(args):
         )
     elif args.dataset == 'datacomp':
         from train.datacomp_dataset import build_datacomp_dataloader
+    elif args.dataset == 'cc12m':
+        from train.cc12m_dataset import build_cc12m_dataloader
     dataset_eval = ImageNetDataset(
         root=args.imagenet_root + '/val',
         transform=preprocessor_without_normalize,
@@ -159,6 +162,10 @@ def main(args):
     if args.dataset == 'datacomp':
         dataloader = build_datacomp_dataloader(
             root=args.imagenet_root, transform=preprocessor_without_normalize,
+            batch_size=args.batch_size, num_workers=8)
+    elif args.dataset == 'cc12m':
+        dataloader = build_cc12m_dataloader(
+            root=args.cc12m_root, transform=preprocessor_without_normalize,
             batch_size=args.batch_size, num_workers=8)
     else:
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
