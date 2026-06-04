@@ -24,8 +24,8 @@ BF16=${BF16:-True}
 # Set DYNAMIC_PW=0 to disable dynamic penalty weight.
 # Set COSINE_DECAY=True to enable cosine decay of target ratio.
 EXPERIMENTS=(
-    "128 0.5 2 8 8e-5 100 1.0 False"
-    "128 0.5 2 8 8e-5 100 0.5 False"
+    "128 0.5 2 8 1e-4 100 0.8 False"
+    "128 0.5 2 8 2e-4 100 0.8 False"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────
