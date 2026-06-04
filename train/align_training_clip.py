@@ -735,6 +735,7 @@ if __name__ == '__main__':
             dynamic_pw_target_ratio=args.dynamic_pw_target_ratio,
             dynamic_pw_cosine_decay=args.dynamic_pw_cosine_decay,
             dynamic_pw_target_ratio_min=getattr(args, 'dynamic_pw_target_ratio_min', None),
+            clean_weight=args.clean_weight,
         )
         args.output_dir = os.path.join(args.output_dir, args.finetuned_model_name)
 

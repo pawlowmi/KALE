@@ -35,6 +35,7 @@ CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
 DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
 DYNAMIC_PW_COSINE_DECAY=${DYNAMIC_PW_COSINE_DECAY:-False}
+CW=${CW:-1.0}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 DRIFT_FREQ=${DRIFT_FREQ:-100}
 BF16=${BF16:-True}
@@ -85,7 +86,7 @@ fi
     --warmup $WARMUP \
     --warmup_pct $WARMUP_PCT \
     --batch_size $BS \
-    --clean_weight 1. \
+    --clean_weight $CW \
     --penalty_weight $PW \
     --kernel_dino polynomial \
     --kernel_clip polynomial \
