@@ -675,7 +675,7 @@ def train_one_epoch(
                     f.write(row + '\n')
 
             # Checkpoints (rank 0 only)
-            if args.save_checkpoints and step_total % (args.steps // 10) == 0:
+            if args.save_checkpoints and step_total % (len(dataloader) // 4) == 0 and step_total % len(dataloader) != 0:
                 torch.save(unwrap_model(model).model.state_dict(),
                            f'{args.output_dir}/checkpoints/step_{step_total}.pt')
                 torch.save(optimizer.state_dict(),
