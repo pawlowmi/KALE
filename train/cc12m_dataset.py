@@ -5,6 +5,8 @@ import os
 import torch
 import webdataset as wds
 from torch.utils.data import DataLoader
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 CC12M_SIZE = 10_968_539
 
