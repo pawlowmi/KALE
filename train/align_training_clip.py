@@ -145,13 +145,25 @@ def compute_kernel_sparsity(diff_matrix, threshold=1e-4):
 # ── Dynamic penalty weight ────────────────────────────────────────────────────
 
 class DynamicPenaltyWeight:
-    def __init__(self, update_every, target_ratio, initial_pw, ema_decay=0.99):
+    def __init__(self, update_every, target_ratio, initial_pw, ema_decay=0.99,
+                 cosine_decay=False, total_steps=None, target_ratio_min=0.3):
         self.update_every = update_every
         self.target_ratio = target_ratio
         self.pw = initial_pw
         self.ema_decay = ema_decay
         self.ema_kernel = None
         self.ema_clean = None
+        # Cosine decay of target_ratio: from target_ratio -> target_ratio_min over training
+        self.cosine_decay = cosine_decay
+        self.total_steps = total_steps
+        self.target_ratio_min = target_ratio_min
+
+    def _current_target(self, step_total):
+        if not self.cosine_decay or self.total_steps is None:
+            return self.target_ratio
+        import math
+        step_ratio = 0.5 * (1 + math.cos(math.pi * step_total / self.total_steps))
+        return self.target_ratio * step_ratio + self.target_ratio_min * (1 - step_ratio)
 
     def update_ema(self, loss_kernel, loss_clean):
         if self.ema_kernel is None:
@@ -165,12 +177,13 @@ class DynamicPenaltyWeight:
         if step_total > warmup_steps and step_total > 0 and step_total % self.update_every == 0:
             if self.ema_kernel > 0 and self.ema_clean > 0 and self.pw > 0:
                 current_ratio = self.pw * self.ema_kernel / (clean_weight * self.ema_clean)
+                target = self._current_target(step_total)
                 if current_ratio > 0:
-                    correction = (self.target_ratio / current_ratio) ** 0.5
+                    correction = (target / current_ratio) ** 0.5
                     self.pw *= correction
-                    if is_main():
+                    if is_main() if dist.is_initialized() else True:
                         print(f'[dynamic-pw] step={step_total} pw={self.pw:.4f} '
-                              f'ratio={current_ratio:.6f} target={self.target_ratio:.6f}',
+                              f'ratio={current_ratio:.6f} target={target:.6f}',
                               flush=True)
         return self.pw
 
@@ -359,7 +372,12 @@ def main(args, rank, local_rank, world_size):
 
     dynamic_pw = None
     if args.dynamic_pw > 0:
-        dynamic_pw = DynamicPenaltyWeight(args.dynamic_pw, args.dynamic_pw_target_ratio, args.penalty_weight)
+        dynamic_pw = DynamicPenaltyWeight(
+            args.dynamic_pw, args.dynamic_pw_target_ratio, args.penalty_weight,
+            cosine_decay=args.dynamic_pw_cosine_decay,
+            total_steps=args.steps,
+            target_ratio_min=args.dynamic_pw_target_ratio_min,
+        )
         if resuming:
             dpw_path = os.path.join(args.output_dir, 'checkpoints', 'dynamic_pw.json')
             if os.path.exists(dpw_path):

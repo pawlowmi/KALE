@@ -34,6 +34,7 @@ MODE=${MODE:-precomputed}
 CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
 DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
+DYNAMIC_PW_COSINE_DECAY=${DYNAMIC_PW_COSINE_DECAY:-False}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 DRIFT_FREQ=${DRIFT_FREQ:-100}
 BF16=${BF16:-True}
@@ -100,5 +101,6 @@ fi
     --lam 1e-4 \
     --dynamic_pw $DYNAMIC_PW \
     --dynamic_pw_target_ratio $DYNAMIC_PW_TARGET \
+    --dynamic_pw_cosine_decay $DYNAMIC_PW_COSINE_DECAY \
     --drift_freq $DRIFT_FREQ \
     --bf16 $BF16

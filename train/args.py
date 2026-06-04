@@ -43,6 +43,8 @@ def parse_args():
     parser.add_argument('--penalty_weight', type=float, default=1, help='Weight for penalty loss')
     parser.add_argument('--dynamic_pw', type=int, default=0, help='Update penalty_weight every N steps to match target ratio (0=disabled)')
     parser.add_argument('--dynamic_pw_target_ratio', type=float, default=0.5, help='Target ratio of effective alignment to effective clean loss')
+    parser.add_argument('--dynamic_pw_cosine_decay', type=str2bool, default=False, help='Cosine decay of target_ratio from dynamic_pw_target_ratio to 0.3 over training')
+    parser.add_argument('--dynamic_pw_target_ratio_min', type=float, default=0.3, help='Minimum target ratio at end of cosine decay')
     parser.add_argument('--clean_weight', type=float, default=1, help='Weight for clean loss')
 
     # Kernel
