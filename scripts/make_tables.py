@@ -4,23 +4,28 @@ from collections import defaultdict
 parser = argparse.ArgumentParser(description="Print eval result tables vs openai baseline")
 parser.add_argument("--eval_dir", default="/mnt/data/eval_results")
 parser.add_argument("--openai_dir", default=None, help="Path to openai baseline results (default: eval_dir/ViT-L-14_openai)")
-parser.add_argument("--exp_dir", default=None, help="Path to experiment dir with step_* subdirs (default: dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy)")
-parser.add_argument("--alias", nargs=2, metavar=("STEP", "NAME"), action="append", default=[["step_40000", "kuea-baseline"]], help="Rename a step label, e.g. --alias step_40000 kuea-baseline")
+parser.add_argument("--exp", nargs=2, metavar=("NAME", "PATH"), action="append", default=[],
+                    help="Add experiment: --exp paper-baseline /path/to/eval/exp_dir. Repeatable.")
+parser.add_argument("--flat_exp", nargs=2, metavar=("NAME", "PATH"), action="append", default=[],
+                    help="Add single-checkpoint flat dir as one column: --flat_exp paper-baseline /path/to/flat/dir")
+parser.add_argument("--alias", nargs=2, metavar=("STEP", "NAME"), action="append", default=[["step_40000", "kuea-baseline"]],
+                    help="Rename a step label within any experiment, e.g. --alias step_40000 kuea-baseline")
 args = parser.parse_args()
 
 EVAL_DIR = args.eval_dir
 OPENAI_DIR = args.openai_dir or EVAL_DIR + "/ViT-L-14_openai"
-DEV_DIR = args.exp_dir or EVAL_DIR + "/dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
-
 STEP_ALIASES = dict(args.alias)
+
+# Default experiment if none specified
+if not args.exp:
+    args.exp = [["exp", EVAL_DIR + "/dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"]]
+
 
 def load_results(directory):
     results = defaultdict(dict)
     for f in glob.glob(directory + "/*.json"):
         d = json.load(open(f))
-        task = d["task"]
-        dataset = d["dataset"].split("/")[-1]
-        m = d["metrics"]
+        task, dataset, m = d["task"], d["dataset"].split("/")[-1], d["metrics"]
         if task == "zeroshot_classification":
             results["zeroshot"][dataset] = round(m["acc1"] * 100, 2)
         elif task == "linear_probe":
@@ -30,28 +35,43 @@ def load_results(directory):
             results["retrieval"][dataset] = round(r1 * 100, 2)
     return results
 
-def load_step_results(base_dir):
-    steps = {}
-    for step_dir in sorted(glob.glob(base_dir + "/step_*")):
+
+def load_exp_cols(exp_name, exp_path):
+    """Load all step_* and final subdirs as separate columns prefixed with exp_name."""
+    cols = {}
+    for step_dir in sorted(glob.glob(exp_path + "/step_*") + glob.glob(exp_path + "/final")):
         raw = os.path.basename(step_dir)
         label = STEP_ALIASES.get(raw, raw)
-        steps[label] = load_results(step_dir)
-    return steps
+        col_name = f"{exp_name}/{label}" if len(args.exp) > 1 else label
+        cols[col_name] = load_results(step_dir)
+    return cols
 
-def print_table(task_name, openai, paper_steps):
-    step_labels = sorted(paper_steps.keys(),
-                         key=lambda x: int(x.split("_")[1]) if x.startswith("step_") else float("inf"))
+
+def sort_key(col):
+    part = col.split("/")[-1]
+    if part == "final":
+        return (1, float("inf"), "")
+    if part.startswith("step_"):
+        try:
+            return (0, int(part.split("_")[1]), col)
+        except ValueError:
+            pass
+    return (0, 0, col)
+
+
+def print_table(task_name, openai, all_cols):
+    col_labels = sorted(all_cols.keys(), key=sort_key)
     all_datasets = sorted(set(
         list(openai.get(task_name, {}).keys()) +
-        [ds for s in paper_steps.values() for ds in s.get(task_name, {}).keys()]
+        [ds for c in all_cols.values() for ds in c.get(task_name, {}).keys()]
     ))
-    cols = ["openai"] + step_labels
+    cols = ["openai"] + col_labels
 
     data = {}
     for ds in all_datasets:
         row = {"openai": openai.get(task_name, {}).get(ds)}
-        for lbl in step_labels:
-            row[lbl] = paper_steps[lbl].get(task_name, {}).get(ds)
+        for lbl in col_labels:
+            row[lbl] = all_cols[lbl].get(task_name, {}).get(ds)
         data[ds] = row
 
     avgs = {}
@@ -60,7 +80,7 @@ def print_table(task_name, openai, paper_steps):
         avgs[col] = sum(vals) / len(vals) if vals else None
 
     openai_avg = avgs["openai"]
-    col_w = 18
+    col_w = 20
     ds_w = 34
     sep = "-" * (ds_w + col_w * len(cols))
     header = ("%-*s" % (ds_w, "Dataset")) + "".join(("%*s" % (col_w, c)) for c in cols)
@@ -90,8 +110,13 @@ def print_table(task_name, openai, paper_steps):
             avg_str += "%*s" % (col_w, cell)
     print(avg_str)
 
+
 openai = load_results(OPENAI_DIR)
-paper_steps = load_step_results(DEV_DIR)
+all_cols = {}
+for exp_name, exp_path in args.exp:
+    all_cols.update(load_exp_cols(exp_name, exp_path))
+for exp_name, exp_path in args.flat_exp:
+    all_cols[exp_name] = load_results(exp_path)
 
 for task in ["zeroshot", "lp", "retrieval"]:
-    print_table(task, openai, paper_steps)
+    print_table(task, openai, all_cols)
