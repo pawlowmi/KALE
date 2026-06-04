@@ -74,7 +74,7 @@ def parse_args():
     parser.add_argument('--overwrite', type=str2bool, default=False, help='Overwrite existing directory')
     parser.add_argument('--resume', type=str, default='', help='Path to experiment dir to resume from (auto-loads latest checkpoint)')
     parser.add_argument('--save_checkpoints', type=str2bool, default=True, help='Save 10 training checkpoints')
-    parser.add_argument('--save_epoch_checkpoints', type=str2bool, default=True, help='Save checkpoint after each epoch')
+    parser.add_argument('--save_epoch_checkpoints', type=str2bool, default=False, help='Save checkpoint after each epoch')
 
     # Device
     parser.add_argument('--devices', type=str, default='', help='Device IDs for CUDA')
