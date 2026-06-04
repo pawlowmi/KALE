@@ -26,6 +26,7 @@ from train.indexed_dataset import IndexedImageFolder
 from train.cc12m_dataset import create_cc12m_dataloader
 from train.models import ClipVisionModel, load_clip_orig, load_vision_model, wrap_vision_model
 from train.utils import init_wandb, AverageMeter, compute_text_embeddings
+from train.metrics import ClipDriftMetric
 from CLIP_eval.eval_utils import load_clip_model
 
 
@@ -281,6 +282,18 @@ def main(args, rank, local_rank, world_size):
     model.model.set_grad_checkpointing(True)
     model = DDP(model, device_ids=[local_rank])
 
+    # CLIP drift metric — rank 0 only, uses a fresh frozen reference model
+    drift_metric = None
+    if is_main() and args.drift_freq > 0:
+        frozen_ref, _, frozen_normalize, _ = load_clip_orig(args.clip_model_name)
+        frozen_ref = ClipVisionModel(model=frozen_ref.visual, normalize=frozen_normalize).to(device)
+        frozen_ref.eval()
+        drift_metric = ClipDriftMetric(
+            dataset=dataset_eval, frozen_model=frozen_ref, device=device,
+            n_samples=256, seed=0, freq=args.drift_freq)
+        if is_main():
+            print(f'ClipDriftMetric: 256 fixed samples, every {args.drift_freq} steps', flush=True)
+
     # Kernel projector (learnable) — initialize directly on device to keep leaf status
     if args.kernel_clip == 'gaussian':
         projector_clip = torch.nn.Parameter(
@@ -358,7 +371,7 @@ def main(args, rank, local_rank, world_size):
             warmup_steps=warmup_steps, dynamic_pw=dynamic_pw,
             tb_writer=tb_writer, precomputed_orig=precomputed_orig,
             precomputed_dino=precomputed_dino, csv_log_path=csv_log_path,
-            device=device,
+            device=device, drift_metric=drift_metric,
         )
         if is_main():
             print(f'Epoch {epoch} done.')
@@ -385,7 +398,7 @@ def train_one_epoch(
         dataloader, dataloader_eval, optimizer, scheduler, normalize,
         embedding_text_labels_norm, args, epoch, warmup_steps,
         dynamic_pw=None, tb_writer=None, precomputed_orig=None,
-        precomputed_dino=None, csv_log_path=None, device=None,
+        precomputed_dino=None, csv_log_path=None, device=None, drift_metric=None,
 ):
     if model_orig is not None:
         model_orig.eval()
@@ -536,6 +549,12 @@ def train_one_epoch(
             eval_logs['eval/acc'] = acc_eval
             model.train()
             del data_eval, targets_eval, embedding_eval_norm, logits_eval
+
+        # Drift metric — rank 0 only
+        if is_main() and drift_metric is not None and drift_metric.should_run(step_total):
+            drift_logs = drift_metric.compute(unwrap_model(model))
+            eval_logs.update(drift_logs)
+            print(f'[drift] l2={drift_logs["drift/l2"]:.4f} angle={drift_logs["drift/angle_deg"]:.2f}°')
 
         if is_main():
             lr_ = optimizer.param_groups[0].get('lr')

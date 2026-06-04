@@ -35,6 +35,7 @@ CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
 DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
+DRIFT_FREQ=${DRIFT_FREQ:-100}
 
 # Build steps/epochs flag (mutually exclusive)
 if [ "$STEPS" -gt 0 ]; then
@@ -97,4 +98,5 @@ fi
     --enhanced_metrics False \
     --lam 1e-4 \
     --dynamic_pw $DYNAMIC_PW \
-    --dynamic_pw_target_ratio $DYNAMIC_PW_TARGET
+    --dynamic_pw_target_ratio $DYNAMIC_PW_TARGET \
+    --drift_freq $DRIFT_FREQ
