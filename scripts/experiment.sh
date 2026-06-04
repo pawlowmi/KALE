@@ -18,7 +18,6 @@ TRAIN_SCRIPT=/mnt/data/code/KUEA/scripts/run_align_cc12m.sh
 EVAL_SCRIPT=/mnt/data/code/KUEA/scripts/run_eval_checkpoints.sh
 EXPERIMENTS_DIR=${EXPERIMENTS_DIR:-/mnt/data/experiments}
 EVAL_BASE=${EVAL_BASE:-${EXPERIMENTS_DIR/experiments/eval_results}}
-EVAL_N=8
 BF16=${BF16:-True}
 
 # Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET COSINE_DECAY"
@@ -69,12 +68,7 @@ run_evaluation() {
     echo "=== Evaluating: $(basename $exp_dir) ==="
     echo "Started: $(date)"
 
-    INCLUDE_FINAL=1 N=$EVAL_N EVAL_BASE=$EVAL_BASE bash "$EVAL_SCRIPT" "$exp_dir"
-
-    echo "Waiting for evaluations to finish..."
-    while tmux ls 2>/dev/null | grep -q "eval_"; do
-        sleep 60
-    done
+    GPUS=$DEVICES CKPT_TYPE=all EVAL_BASE=$EVAL_BASE bash "$EVAL_SCRIPT" "$exp_dir"
 
     echo "Evaluation done: $(date)"
 }
