@@ -23,7 +23,8 @@ EVAL_N=8
 # Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET"
 # Set DYNAMIC_PW=0 to disable dynamic penalty weight.
 EXPERIMENTS=(
-    "128 0.5 2 8 4e-5 100 0.5"
+    "128 0.5 2 8 4e-5 100 0.8"
+    "128 0.5 4 8 4e-5 100 0.5"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────
