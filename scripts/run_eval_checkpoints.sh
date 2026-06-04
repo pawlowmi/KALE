@@ -29,7 +29,7 @@ INCLUDE_FINAL=${INCLUDE_FINAL:-0}
 
 CKPT_DIR="$EXP_DIR/checkpoints"
 EXP_NAME=$(basename "$EXP_DIR")
-EVAL_BASE="/mnt/data/eval_results"
+EVAL_BASE="${EVAL_BASE:-/mnt/data/eval_results}"
 
 # Parse GPU list
 IFS=',' read -ra GPU_LIST <<< "$GPUS"
