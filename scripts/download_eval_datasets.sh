@@ -15,7 +15,7 @@ DATASETS=(
   wds_vtab-cifar10 wds_vtab-cifar100 wds_vtab-caltech101
   wds_fer2013 wds_vtab-pets wds_vtab-dtd wds_vtab-resisc45
   wds_vtab-eurosat wds_vtab-pcam wds_imagenet_sketch wds_imagenet-o
-  wds_svhn_cropped wds_gtsrb wds_vtab-clevr_closest_object_distance
+  wds_vtab-svhn wds_gtsrb wds_vtab-clevr_closest_object_distance
   wds_vtab-clevr_count_all wds_mscoco_captions wds_flickr30k
 )
 

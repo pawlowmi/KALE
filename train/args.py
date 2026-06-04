@@ -16,6 +16,8 @@ def parse_args():
     parser.add_argument('--template', type=str, default='std')
     parser.add_argument('--imagenet_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
     parser.add_argument('--imagenet21k_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
+    parser.add_argument('--cc12m_shards', type=str, default='', help='CC12M webdataset shards directory')
+    parser.add_argument('--n_train_samples', type=int, default=0, help='Subsample training set to N samples (0 = use all)')
 
     # Training
     parser.add_argument('--start_step', type=int, default=0, help='Start step for training')

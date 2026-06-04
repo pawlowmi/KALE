@@ -1,2 +1,2 @@
 wds/mscoco_captions
-wds/flicker30k
+wds/flickr30k

@@ -25,6 +25,13 @@ set -e
 #
 #   # Run only linear probing and retrieval
 #   TASKS="lp,retrieval" DEVICES=0 ./scripts/run_eval.sh
+#
+#   # Run in tmux
+#   CHECKPOINT=/mnt/data/experiments/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy/checkpoints/final.pt
+#   SAVE_DIR=/mnt/data/eval_results/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy
+#   tmux new-session -d -s eval_zs "TASKS=zeroshot  DEVICES=0 CHECKPOINT=$CHECKPOINT SAVE_DIR=$SAVE_DIR bash /mnt/data/code/KUEA/scripts/run_eval.sh"
+#   tmux new-session -d -s eval_lp "TASKS=lp        DEVICES=1 CHECKPOINT=$CHECKPOINT SAVE_DIR=$SAVE_DIR bash /mnt/data/code/KUEA/scripts/run_eval.sh"
+#   tmux new-session -d -s eval_rt "TASKS=retrieval DEVICES=2 CHECKPOINT=$CHECKPOINT SAVE_DIR=$SAVE_DIR bash /mnt/data/code/KUEA/scripts/run_eval.sh"
 
 # Configurable parameters with defaults
 MODEL=${MODEL:-ViT-L-14}
@@ -33,6 +40,7 @@ DEVICES=${DEVICES:-0}
 BS=${BS:-64}
 TASKS=${TASKS:-zeroshot,lp,retrieval}
 SAVE_DIR=${SAVE_DIR:-/mnt/data/eval_results}
+DATASET_ROOT=${DATASET_ROOT:-/mnt/data/datasets/eval/wds_{dataset_cleaned}}
 
 if [ -n "$DEVICES" ]; then
     export CUDA_VISIBLE_DEVICES=$DEVICES
@@ -54,7 +62,7 @@ if echo "$TASKS" | grep -q "zeroshot"; then
     echo ""
     echo "=== Zero-shot Classification ==="
     /home/ec2-user/miniconda3/envs/myenv/bin/python -m clip_benchmark.cli eval \
-        --dataset_root "../CLIP_benchmark/datasets/wds_{dataset_cleaned}" \
+        --dataset_root "$DATASET_ROOT" \
         --dataset benchmark/datasets.txt \
         --pretrained_model benchmark/models.txt \
         --output "${SAVE_DIR}/zeroshot_{model}_{pretrained}_{dataset}.json" \
@@ -67,7 +75,7 @@ if echo "$TASKS" | grep -q "lp"; then
     echo ""
     echo "=== Linear Probing ==="
     /home/ec2-user/miniconda3/envs/myenv/bin/python -m clip_benchmark.cli eval \
-        --dataset_root "../CLIP_benchmark/datasets/wds_{dataset_cleaned}" \
+        --dataset_root "$DATASET_ROOT" \
         --dataset benchmark/datasets_lp.txt \
         --task linear_probe \
         --pretrained_model benchmark/models.txt \
@@ -81,7 +89,7 @@ if echo "$TASKS" | grep -q "retrieval"; then
     echo ""
     echo "=== Image-Text Retrieval ==="
     /home/ec2-user/miniconda3/envs/myenv/bin/python -m clip_benchmark.cli eval \
-        --dataset_root "../CLIP_benchmark/datasets/wds_{dataset_cleaned}" \
+        --dataset_root "$DATASET_ROOT" \
         --dataset benchmark/datasets_rt.txt \
         --task zeroshot_retrieval \
         --recall_k 1 5 10 \

@@ -9,4 +9,5 @@ cd /mnt/data/code/KUEA
     --clip_model_name ViT-L-14 \
     --vision_model dino \
     --batch_size 2048 \
-    --num_workers 32
+    --num_workers 32 \
+    --prefetch_factor 3

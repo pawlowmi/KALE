@@ -21,6 +21,7 @@ from open_flamingo.eval.models.utils import unwrap_model
 from train.args import parse_args, print_args
 from train.datasets import ImageNetDataset
 from train.indexed_dataset import IndexedImageFolder
+from train.cc12m_dataset import create_cc12m_dataloader
 from train.models import ClipVisionModel, load_clip_orig, load_vision_model, wrap_vision_model
 from train.utils import init_wandb, AverageMeter, compute_text_embeddings
 from CLIP_eval.eval_utils import load_clip_model
@@ -93,17 +94,28 @@ def main(args):
     print(f'[normalize] {normalize}')
 
     # get data
-    if args.dataset != 'imagenet':
-        raise ValueError(f'Unsupported dataset: {args.dataset}')
-    if args.precomputed_dir:
-        dataset = IndexedImageFolder(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
-        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
-    else:
-        dataset = ImageNetDataset(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
-        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
     dl_workers = args.dataloader_num_workers * max(num_gpus, 1)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
-    dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+    if args.dataset == 'cc12m':
+        assert args.cc12m_shards, '--cc12m_shards required for cc12m dataset'
+        assert not args.precomputed_dir, 'Precomputed embeddings not supported with cc12m'
+        n_samples = args.n_train_samples if args.n_train_samples > 0 else None
+        dataloader = create_cc12m_dataloader(
+            shards_dir=args.cc12m_shards, transform=preprocessor_without_normalize,
+            batch_size=args.batch_size, n_samples=n_samples,
+            num_workers=dl_workers, seed=0
+        )
+        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
+        dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+    elif args.dataset == 'imagenet':
+        if args.precomputed_dir:
+            dataset = IndexedImageFolder(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
+        else:
+            dataset = ImageNetDataset(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
+        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
+        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+        dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+    else:
+        raise ValueError(f'Unsupported dataset: {args.dataset}')
 
     embedding_text_labels_norm = build_imagenet_text_embeddings(
         model_orig, tokenizer, args.template
