@@ -1,3 +1,4 @@
+from torch.utils.tensorboard import SummaryWriter
 import sys
 
 from train.datasets import COCOFlickrDataset, ImageNetDataset
@@ -75,6 +76,8 @@ def main(args):
         )
     else:
         wandb.init(mode='disabled')
+
+    tb_writer = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tensorboard'))
 
     # print args
     print(f"Arguments:\n{'-' * 20}")
@@ -275,7 +278,8 @@ def main(args):
             embedding_text_labels_norm=embedding_text_labels_norm,
             normalize=normalize,
             args=args,
-            epoch=epoch
+            epoch=epoch,
+            tb_writer=tb_writer
         )
         print(f'Epoch {epoch} done.')
         epoch += 1
@@ -331,7 +335,7 @@ class ComputeLossWrapper:
 
 def train_one_epoch(
         step_total, model, model_orig, model_dino, projector_clip, band_dino, dataloader, optimizer, scheduler, normalize,
-        embedding_text_labels_norm, args, epoch, dataloader_eval=None
+        embedding_text_labels_norm, args, epoch, dataloader_eval=None, tb_writer=None
 ):
     model_orig.eval()
     model.train()
@@ -467,6 +471,15 @@ def train_one_epoch(
                     'other/epoch': epoch + i / len(dataloader),
                 })
             wandb.log(log_data)
+            if tb_writer is not None:
+                tb_writer.add_scalar('train/loss', loss.item(), step_total)
+                tb_writer.add_scalar('train/loss_total', loss_total.item(), step_total)
+                tb_writer.add_scalar('train/lr', lr_, step_total)
+                if acc is not None:
+                    tb_writer.add_scalar('train/acc', acc, step_total)
+                tb_writer.add_scalar('train/cos_sim', cos_sim_clean.item(), step_total)
+                if 'eval/acc' in eval_logs:
+                    tb_writer.add_scalar('eval/acc', eval_logs['eval/acc'], step_total)
 
         # save 10 models over the course of training
         if args.save_checkpoints and (step_total % (args.steps // 10) == 0):
