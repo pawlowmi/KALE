@@ -28,8 +28,8 @@ EPOCHS=${EPOCHS:-4}
 WARMUP=${WARMUP:-0}
 WARMUP_PCT=${WARMUP_PCT:-10}
 LR=${LR:-1.6e-4}
-CC12M_ROOT=${CC12M_ROOT:-/mnt/ramdisk/cc12m-3m}
-PRECOMPUTED_DIR=${PRECOMPUTED_DIR:-/mnt/ramdisk/cc12m-3m/precomputed}
+CC12M_ROOT=${CC12M_ROOT:-/mnt/ramdisk/cc12m-6m}
+PRECOMPUTED_DIR=${PRECOMPUTED_DIR:-/mnt/ramdisk/cc12m-6m/precomputed}
 MODE=${MODE:-precomputed}
 CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
 DYNAMIC_PW=${DYNAMIC_PW:-0}
@@ -93,7 +93,7 @@ fi
     --kernel_clip polynomial \
     --gamma 0.0032 \
     --coef0 0.191623 \
-    --experiment_name "cc12m-3m-cap-lr-$LR_MIN_PCT" \
+    --experiment_name "cc12m-6m-cap-lr-$LR_MIN_PCT" \
     --log_freq 1 \
     --eval_freq 1000 \
     --dataloader_num_workers 16 \

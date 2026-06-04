@@ -25,10 +25,9 @@ BF16=${BF16:-True}
 # Set COSINE_DECAY=True to enable cosine decay of target ratio.
 # LR_MIN_PCT: minimum LR as percentage of peak LR (default 10). Set to 100 for flat LR after warmup.
 EXPERIMENTS=(
-    "128 0.5 2 8 1e-4 100 0.8 False 1.0 12"
-    "128 0.5 2 8 1e-4 100 0.8 False 1.0 15"
-    "128 0.5 2 8 1e-4 100 0.8 False 1.0 18"
-    "128 0.5 2 8 1e-4 100 0.8 False 1.0 20"
+    "128 0.5 4 8 1e-4 100 0.8 False 1.0 10"
+    "128 0.5 2 8 1.4e-4 100 0.8 False 1.0 10"
+    "128 0.5 3 8 1e-4 100 0.8 False 1.0 10"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────

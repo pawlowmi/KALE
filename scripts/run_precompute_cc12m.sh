@@ -13,9 +13,9 @@ set -e
 
 STAGE=${STAGE:-all}
 CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
-EXTRACT_DIR=${EXTRACT_DIR:-/mnt/ramdisk/cc12m-3m}
-OUTPUT_DIR=${OUTPUT_DIR:-/mnt/ramdisk/cc12m-3m/precomputed}
-N_SAMPLES=${N_SAMPLES:-3300000}
+EXTRACT_DIR=${EXTRACT_DIR:-/mnt/ramdisk/cc12m-6m}
+OUTPUT_DIR=${OUTPUT_DIR:-/mnt/ramdisk/cc12m-6m/precomputed}
+N_SAMPLES=${N_SAMPLES:-6600000}
 N_VAL_SAMPLES=${N_VAL_SAMPLES:-50000}
 SEED=${SEED:-198}
 BATCH_SIZE=${BATCH_SIZE:-2048}
