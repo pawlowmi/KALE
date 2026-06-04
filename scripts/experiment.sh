@@ -26,6 +26,8 @@ BF16=${BF16:-True}
 # Set COSINE_DECAY=True to enable cosine decay of target ratio.
 EXPERIMENTS=(
     "128 0.5 8 8 4e-5 100 0.8 False"
+    "128 0.5 8 8 4e-5 100 1.0 False"
+    "128 0.5 8 8 4e-5 100 0.8 True"
     "128 0.5 8 8 4e-5 100 1.0 True"
 )
 
