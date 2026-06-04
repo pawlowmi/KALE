@@ -16,14 +16,14 @@ set -e
 DEVICES=0,1,2,3,4,5,6,7
 TRAIN_SCRIPT=/mnt/data/code/KUEA/scripts/run_align_cc12m.sh
 EVAL_SCRIPT=/mnt/data/code/KUEA/scripts/run_eval_checkpoints.sh
-EXPERIMENTS_DIR=/mnt/data/experiments
+EXPERIMENTS_DIR=${EXPERIMENTS_DIR:-/mnt/data/experiments}
+EVAL_BASE=${EVAL_BASE:-/mnt/data/eval_results}
 EVAL_N=8
 
 # Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET"
 # Set DYNAMIC_PW=0 to disable dynamic penalty weight.
 EXPERIMENTS=(
-    "128 1000 4 5 1.6e-4 100 1.0"
-    "128 1000 4 5 4e-5   100 1.0"
+    "128 0.5 2 8 4e-5 100 0.5"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────
@@ -36,6 +36,7 @@ run_training() {
 
     DEVICES=$DEVICES BS=$bs PW=$pw EPOCHS=$epochs WARMUP_PCT=$warmup_pct LR=$lr \
         DYNAMIC_PW=$dynamic_pw DYNAMIC_PW_TARGET=$dynamic_pw_target \
+        OUTPUT_DIR=$EXPERIMENTS_DIR \
         bash "$TRAIN_SCRIPT"
 
     echo "Finished: $(date)"
@@ -57,7 +58,7 @@ run_evaluation() {
     echo "=== Evaluating: $(basename $exp_dir) ==="
     echo "Started: $(date)"
 
-    INCLUDE_FINAL=1 N=$EVAL_N bash "$EVAL_SCRIPT" "$exp_dir"
+    INCLUDE_FINAL=1 N=$EVAL_N EVAL_BASE=$EVAL_BASE bash "$EVAL_SCRIPT" "$exp_dir"
 
     echo "Waiting for evaluations to finish..."
     while tmux ls 2>/dev/null | grep -q "eval_"; do

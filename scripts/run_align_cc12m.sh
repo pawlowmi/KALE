@@ -34,6 +34,7 @@ MODE=${MODE:-precomputed}
 CC12M_SHARDS=${CC12M_SHARDS:-/mnt/data/datasets/cc12m/shards}
 DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
+OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 
 # Build steps/epochs flag (mutually exclusive)
 if [ "$STEPS" -gt 0 ]; then
@@ -76,7 +77,7 @@ fi
     --wd 1e-4 \
     --inner_loss l2 \
     --wandb False \
-    --output_dir /mnt/data/experiments/ \
+    --output_dir $OUTPUT_DIR \
     $DURATION_FLAG \
     --warmup $WARMUP \
     --warmup_pct $WARMUP_PCT \
