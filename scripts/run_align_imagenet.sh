@@ -71,5 +71,5 @@ fi
     --dataloader_num_workers 4 \
     --prefetch_factor 4 \
     --enable_bs_scaling True \
-    --enhanced_metrics True \
+    --enhanced_metrics False \
     --lam 1e-3
