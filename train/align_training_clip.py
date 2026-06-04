@@ -150,11 +150,18 @@ def main(args):
             root=args.imagenet21k_root + '/imagenet21k_train',
             transform=preprocessor_without_normalize,
         )
+    elif args.dataset == 'datacomp':
+        from train.datacomp_dataset import build_datacomp_dataloader
     dataset_eval = ImageNetDataset(
         root=args.imagenet_root + '/val',
         transform=preprocessor_without_normalize,
     )
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
+    if args.dataset == 'datacomp':
+        dataloader = build_datacomp_dataloader(
+            root=args.imagenet_root, transform=preprocessor_without_normalize,
+            batch_size=args.batch_size, num_workers=8)
+    else:
+        dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
     dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 
     # Get text label embeddings of all ImageNet classes
