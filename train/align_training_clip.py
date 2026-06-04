@@ -285,9 +285,8 @@ def main(args, rank, local_rank, world_size):
         model_dino = wrap_vision_model(model_dino, args.clip_model_name, args.vision_model, normalize).to(device)
         model_dino.eval()
 
-    # Trainable model — gradient checkpointing to reduce activation memory on large ViT
+    # Trainable model
     model = ClipVisionModel(model=model.visual, normalize=normalize).to(device)
-    model.model.set_grad_checkpointing(True)
     model = DDP(model, device_ids=[local_rank])
 
     # CLIP drift metric — rank 0 only, uses a fresh frozen reference model
