@@ -11,7 +11,7 @@ set -e
 #   tmux new-session -d -s train_64_05  'DEVICES=0       BS=64  PW=0.5 WARMUP=1500 EPOCHS=2 bash /mnt/data/code/KUEA/scripts/run_align_imagenet.sh'
 #   tmux new-session -d -s train_128_10 'DEVICES=1       BS=128 PW=10  WARMUP_PCT=10 EPOCHS=2 bash /mnt/data/code/KUEA/scripts/run_align_imagenet.sh'
 #   tmux new-session -d -s train_256_10 'DEVICES=2,3     BS=128 PW=10  WARMUP_PCT=10 EPOCHS=2 bash /mnt/data/code/KUEA/scripts/run_align_imagenet.sh'
-#   tmux new-session -d -s train_512_10 'DEVICES=4,5,6,7 BS=128 PW=10  WARMUP_PCT=10 EPOCHS=2 bash /mnt/data/code/KUEA/scripts/run_align_imagenet.sh'
+#   tmux new-session -d -s train_512_05 'DEVICES=4,5,6,7 BS=128 PW=0.5  WARMUP_PCT=10 EPOCHS=2 bash /mnt/data/code/KUEA/scripts/run_align_imagenet.sh'
 #
 # Note: BS is per-GPU batch size. With --enable_bs_scaling True (default),
 #       effective batch size = BS x number of GPUs.
@@ -70,4 +70,6 @@ fi
     --precomputed_dir /mnt/ramdisk/precomputed \
     --dataloader_num_workers 4 \
     --prefetch_factor 4 \
-    --enable_bs_scaling True
+    --enable_bs_scaling True \
+    --enhanced_metrics True \
+    --lam 1e-3

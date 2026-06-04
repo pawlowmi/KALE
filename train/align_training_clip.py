@@ -72,7 +72,10 @@ def main(args):
     tb_writer = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tensorboard'))
     csv_log_path = os.path.join(args.output_dir, 'train_log.csv')
     with open(csv_log_path, 'w') as f:
-        f.write('step,lr,loss,loss_total,cos_sim,acc,eval_acc\n')
+        header = 'step,lr,loss,loss_total,cos_sim,acc,eval_acc'
+        if args.enhanced_metrics:
+            header += ',mean_above_thresh,ratio_above_thresh,ratio_below_thresh,masked_loss'
+        f.write(header + '\n')
 
     print_args(args)
     setup_output_dir(args.output_dir, args.overwrite, args)
@@ -307,7 +310,12 @@ def train_one_epoch(
             norm_X = embedding_clean / embedding_clean.norm(dim=1, keepdim=True)
             k_clip = norm_X @ norm_X.T
 
-        loss = torch.mean((k_clip-k_dino)**2)
+        diff_sq = (k_clip - k_dino) ** 2
+        sparsity_metrics = {}
+        if args.enhanced_metrics:
+            with torch.no_grad():
+                sparsity_metrics = compute_kernel_sparsity(diff_sq, threshold=args.lam)
+        loss = torch.mean(diff_sq)
         loss_total = args.clean_weight * loss_clean + args.penalty_weight * loss
 
         loss_total.backward()
@@ -355,6 +363,8 @@ def train_one_epoch(
             postfix['acc'] = f'{acc:.1f}'
         if 'eval/acc' in eval_logs:
             postfix['eval_acc'] = f'{eval_logs["eval/acc"]:.1f}'
+        if args.enhanced_metrics and sparsity_metrics:
+            postfix['outlier'] = f'{sparsity_metrics["sparsity/ratio_above_thresh"]:.3f}'
         pbar.set_postfix(postfix)
 
         if (step_total-1) % args.log_freq == 0:
@@ -369,6 +379,8 @@ def train_one_epoch(
                 'avg/acc': acc_meter.avg,
             }
             log_data.update(eval_logs)
+            if args.enhanced_metrics:
+                log_data.update(sparsity_metrics)
             if (step_total-1) % (args.log_freq * 10) == 0:
                 # compute expected average epoch time in hours
                 batch_average_time = (time.time() - epoch_start_time) / (i + 1) / (60**2)
@@ -394,13 +406,19 @@ def train_one_epoch(
                 if acc is not None:
                     tb_writer.add_scalar('train/acc', acc, step_total)
                 tb_writer.add_scalar('train/cos_sim', cos_sim_clean.item(), step_total)
+                if args.enhanced_metrics:
+                    for k, v in sparsity_metrics.items():
+                        tb_writer.add_scalar(k, v, step_total)
                 if 'eval/acc' in eval_logs:
                     tb_writer.add_scalar('eval/acc', eval_logs['eval/acc'], step_total)
                 tb_writer.flush()
             with open(csv_log_path, 'a') as f:
                 eval_acc_str = f'{eval_logs["eval/acc"]:.4f}' if 'eval/acc' in eval_logs else ''
                 acc_str = f'{acc:.4f}' if acc is not None else ''
-                f.write(f'{step_total},{lr_:.8f},{loss.item():.6f},{loss_total.item():.6f},{cos_sim_clean.item():.6f},{acc_str},{eval_acc_str}\n')
+                f.write(f'{step_total},{lr_:.8f},{loss.item():.6f},{loss_total.item():.6f},{cos_sim_clean.item():.6f},{acc_str},{eval_acc_str}')
+                if args.enhanced_metrics and sparsity_metrics:
+                    f.write(f',{sparsity_metrics["sparsity/mean_above_thresh"]:.6f},{sparsity_metrics["sparsity/ratio_above_thresh"]:.6f},{sparsity_metrics["sparsity/ratio_below_thresh"]:.6f},{sparsity_metrics["sparsity/masked_loss"]:.6f}')
+                f.write('\n')
 
         # save 10 models over the course of training
         if args.save_checkpoints and (step_total % (args.steps // 10) == 0):
@@ -420,6 +438,31 @@ def train_one_epoch(
             break
 
     return step_total
+
+
+def compute_kernel_sparsity(diff_matrix, threshold=1e-4):
+    """Compute sparsity metrics on the (k_clip - k_dino)² matrix before mean reduction.
+
+    Args:
+        diff_matrix: Element-wise squared difference matrix (k_clip - k_dino)².
+        threshold: Lambda threshold for classifying elements.
+
+    Returns:
+        Dict with sparsity metrics.
+    """
+    total = diff_matrix.numel()
+    mask = diff_matrix > threshold
+    n_above = mask.sum().item()
+    n_below = total - n_above
+
+    masked_loss = (diff_matrix * mask).sum() / max(n_above, 1)
+
+    return {
+        'sparsity/mean_above_thresh': diff_matrix[mask].mean().item() if n_above > 0 else 0.0,
+        'sparsity/ratio_above_thresh': n_above / total,
+        'sparsity/ratio_below_thresh': n_below / total,
+        'sparsity/masked_loss': masked_loss.item(),
+    }
 
 
 @torch.no_grad()

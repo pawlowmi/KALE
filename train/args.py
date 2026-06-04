@@ -57,6 +57,8 @@ def parse_args():
     parser.add_argument('--experiment_name', type=str, default='')
     parser.add_argument('--log_freq', type=int, default=1, help='Logging frequency')
     parser.add_argument('--eval_freq', type=int, default=50, help='Evaluation frequency')
+    parser.add_argument('--enhanced_metrics', type=str2bool, default=False, help='Log kernel sparsity metrics each step')
+    parser.add_argument('--lam', type=float, default=1e-4, help='Threshold for kernel sparsity metrics')
 
     # Output
     parser.add_argument('--output_dir', type=str, default='', help='Output directory')
