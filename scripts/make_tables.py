@@ -1,13 +1,18 @@
-import json, os, glob
+import json, os, glob, argparse
 from collections import defaultdict
 
-EVAL_DIR = "/mnt/data/eval_results"
-OPENAI_DIR = EVAL_DIR + "/ViT-L-14_openai"
-DEV_DIR = EVAL_DIR + "/dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
+parser = argparse.ArgumentParser(description="Print eval result tables vs openai baseline")
+parser.add_argument("--eval_dir", default="/mnt/data/eval_results")
+parser.add_argument("--openai_dir", default=None, help="Path to openai baseline results (default: eval_dir/ViT-L-14_openai)")
+parser.add_argument("--exp_dir", default=None, help="Path to experiment dir with step_* subdirs (default: dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy)")
+parser.add_argument("--alias", nargs=2, metavar=("STEP", "NAME"), action="append", default=[["step_40000", "kuea-baseline"]], help="Rename a step label, e.g. --alias step_40000 kuea-baseline")
+args = parser.parse_args()
 
-STEP_ALIASES = {
-    "step_40000": "kuea-baseline",
-}
+EVAL_DIR = args.eval_dir
+OPENAI_DIR = args.openai_dir or EVAL_DIR + "/ViT-L-14_openai"
+DEV_DIR = args.exp_dir or EVAL_DIR + "/dev/ViT-L-14_openai_imagenet_l2_40000steps_baseline_paper_reproduced_pw0.5_MysNy"
+
+STEP_ALIASES = dict(args.alias)
 
 def load_results(directory):
     results = defaultdict(dict)
