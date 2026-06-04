@@ -214,6 +214,11 @@ def main(args, rank, local_rank, world_size):
 
     # DataLoader — each rank gets its own shard via DistributedSampler
     num_workers = args.dataloader_num_workers
+
+    def worker_init(worker_id):
+        from PIL import ImageFile
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
+
     if args.dataset == 'cc12m':
         if args.cc12m_shards:
             dataloader = create_cc12m_dataloader(
@@ -226,7 +231,8 @@ def main(args, rank, local_rank, world_size):
             dataloader = DataLoader(dataset, batch_size=args.batch_size, sampler=sampler,
                                     num_workers=num_workers, pin_memory=True, drop_last=True,
                                     persistent_workers=num_workers > 0,
-                                    prefetch_factor=args.prefetch_factor if num_workers > 0 else None)
+                                    prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+                                    worker_init_fn=worker_init)
     elif args.dataset == 'imagenet':
         if args.precomputed_dir:
             dataset = IndexedImageFolder(root=args.imagenet_root + '/train',
@@ -238,7 +244,8 @@ def main(args, rank, local_rank, world_size):
         dataloader = DataLoader(dataset, batch_size=args.batch_size, sampler=sampler,
                                 num_workers=num_workers, pin_memory=True, drop_last=True,
                                 persistent_workers=num_workers > 0,
-                                prefetch_factor=args.prefetch_factor if num_workers > 0 else None)
+                                prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+                                worker_init_fn=worker_init)
     else:
         raise ValueError(f'Unsupported dataset: {args.dataset}')
 
@@ -248,7 +255,8 @@ def main(args, rank, local_rank, world_size):
     dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, sampler=eval_sampler,
                                  num_workers=num_workers, pin_memory=True, drop_last=True,
                                  persistent_workers=num_workers > 0,
-                                 prefetch_factor=args.prefetch_factor if num_workers > 0 else None)
+                                 prefetch_factor=args.prefetch_factor if num_workers > 0 else None,
+                                 worker_init_fn=worker_init)
 
     embedding_text_labels_norm = build_imagenet_text_embeddings(
         model_orig, tokenizer, args.template, device=device)
