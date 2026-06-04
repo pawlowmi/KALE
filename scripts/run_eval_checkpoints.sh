@@ -114,7 +114,7 @@ for c in "${CHECKPOINTS[@]}"; do
 TASKS=zeroshot DEVICES=$GPU CHECKPOINT=$CKPT SAVE_DIR=$SAVE bash /mnt/data/code/KUEA/scripts/run_eval.sh && \
 TASKS=lp DEVICES=$GPU CHECKPOINT=$CKPT SAVE_DIR=$SAVE bash /mnt/data/code/KUEA/scripts/run_eval.sh && \
 TASKS=retrieval DEVICES=$GPU CHECKPOINT=$CKPT SAVE_DIR=$SAVE bash /mnt/data/code/KUEA/scripts/run_eval.sh; \
-echo '=== DONE (exit code: '\$?') === Press enter to close'; read"
+echo '=== DONE (exit code: '\$?') ==='"
 done
 
 echo ""

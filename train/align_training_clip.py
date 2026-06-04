@@ -415,6 +415,11 @@ def main(args, rank, local_rank, world_size):
         )
         if is_main():
             print(f'Epoch {epoch} done.')
+            if args.save_epoch_checkpoints:
+                torch.save(unwrap_model(model).model.state_dict(),
+                           f'{args.output_dir}/checkpoints/epoch_{epoch}.pt')
+                torch.save(optimizer.state_dict(),
+                           f'{args.output_dir}/checkpoints/epoch_{epoch}_opt.pt')
         epoch += 1
 
     if is_main():
