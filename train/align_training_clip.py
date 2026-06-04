@@ -194,7 +194,7 @@ def main(args, rank, local_rank, world_size):
     resuming = bool(args.resume)
     if is_main() and not resuming:
         with open(csv_log_path, 'w') as f:
-            header = 'step,lr,loss,loss_total,cos_sim,emb_var,emb_var_global,acc,eval_acc'
+            header = 'step,lr,loss,loss_total,cos_sim,emb_var,emb_var_global,emb_erank,acc,eval_acc'
             if args.enhanced_metrics:
                 header += ',mean_above_thresh,ratio_above_thresh,ratio_below_thresh,masked_loss'
             f.write(header + '\n')
@@ -489,6 +489,11 @@ def train_one_epoch(
             cos_sim_clean = F.cosine_similarity(embedding_clean, embedding_orig, dim=1).mean()
             # Variance on rank 0's local batch (128 samples)
             emb_var = embedding_clean.var(dim=0).mean()
+            # Effective rank on rank 0's local batch
+            sv = torch.linalg.svdvals(embedding_clean)
+            sv = sv.clamp(min=1e-8)
+            p = sv / sv.sum()
+            emb_erank = torch.exp(-(p * p.log()).sum())
             # Full-batch variance across all ranks via parallel variance formula
             n = embedding_clean.shape[0]
             local_mean = embedding_clean.mean(dim=0)
@@ -550,6 +555,7 @@ def train_one_epoch(
                     'cos-sim-clean': cos_sim_clean.item(),
                     'emb_var': emb_var.item(),
                     'emb_var_global': emb_var_global.item(),
+                    'emb_erank': emb_erank.item(),
                     'acc': acc, 'avg/loss': loss_meter.avg, 'avg/acc': acc_meter.avg,
                     'loss_ema': loss_ema, 'loss_ema_pct': loss_ema_pct,
                 }
@@ -574,6 +580,7 @@ def train_one_epoch(
                                  ('train/cos_sim', cos_sim_clean.item()),
                                  ('train/emb_var', emb_var.item()),
                                  ('train/emb_var_global', emb_var_global.item()),
+                                 ('train/emb_erank', emb_erank.item()),
                                  ('train/loss_ema', loss_ema), ('train/loss_ema_pct', loss_ema_pct)]:
                         tb_writer.add_scalar(k, v, step_total)
                     if acc is not None:
@@ -588,7 +595,7 @@ def train_one_epoch(
                     eval_acc_str = f'{eval_logs["eval/acc"]:.4f}' if 'eval/acc' in eval_logs else ''
                     acc_str = f'{acc:.4f}' if acc is not None else ''
                     row = f'{step_total},{lr_:.8f},{loss.item():.6f},{loss_total.item():.6f},' \
-                          f'{cos_sim_clean.item():.6f},{emb_var.item():.6f},{emb_var_global.item():.6f},{acc_str},{eval_acc_str}'
+                          f'{cos_sim_clean.item():.6f},{emb_var.item():.6f},{emb_var_global.item():.6f},{emb_erank.item():.4f},{acc_str},{eval_acc_str}'
                     if args.enhanced_metrics and sparsity_metrics:
                         row += f',{sparsity_metrics["sparsity/mean_above_thresh"]:.6f}' \
                                f',{sparsity_metrics["sparsity/ratio_above_thresh"]:.6f}' \
