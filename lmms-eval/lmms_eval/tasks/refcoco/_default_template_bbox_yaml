@@ -4,6 +4,7 @@ doc_to_visual: !function utils.refcoco_bbox_doc_to_visual
 doc_to_text: !function utils.refcoco_doc_to_text
 doc_to_target: "answer"
 generation_kwargs:
+  max_new_tokens: 64
   until:
     - "ASSISTANT:"
 process_results: !function utils.refcoco_process_result

@@ -23,8 +23,8 @@ STEPS=(
 
 # ── Settings ─────────────────────────────────────────────────────────────────
 
-GPUS=(1 2 3 4 5 6 7)
-BS=8
+GPUS=(0 1 2 3 4 5 6 7)
+BS=32
 SAVE_DIR=/mnt/data/eval_results/llava
 EXPERIMENTS_DIR=/mnt/data/experiments
 LORA_BASE=/mnt/data/llava/checkpoints
