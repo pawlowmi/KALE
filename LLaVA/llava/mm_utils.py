@@ -176,7 +176,12 @@ def process_images(images, image_processor, model_cfg):
             image = process_anyres_image(image, image_processor, model_cfg.image_grid_pinpoints)
             new_images.append(image)
     else:
-        return image_processor(images, return_tensors='pt')['pixel_values']
+        # Parallelize preprocessing across CPU cores for throughput (4 threads optimal)
+        from concurrent.futures import ThreadPoolExecutor
+        def _preprocess(img):
+            return image_processor([img], return_tensors='pt')['pixel_values'][0]
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            new_images = list(ex.map(_preprocess, images))
     if all(x.shape == new_images[0].shape for x in new_images):
         new_images = torch.stack(new_images, dim=0)
     return new_images

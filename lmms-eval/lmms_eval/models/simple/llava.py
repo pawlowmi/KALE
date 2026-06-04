@@ -1,6 +1,11 @@
 import torch
 
 torch.backends.cuda.matmul.allow_tf32 = True
+# Limit CPU threads to avoid over-subscription when running multiple parallel eval processes
+import os as _os
+_n_threads = int(_os.environ.get("OMP_NUM_THREADS", "24"))
+torch.set_num_threads(_n_threads)
+torch.set_num_interop_threads(_n_threads)
 
 
 import copy
@@ -103,6 +108,7 @@ class Llava(lmms):
                 llava_model_args.pop(key, None)
             llava_model_args.setdefault("dtype", "float16")
             self._model, self._image_processor, self._tokenizer, self._max_length = load_pretrained_model(pretrained, None, model_name, device_map=self.device_map, **llava_model_args)
+        self._tokenizer.padding_side = "left"
         self._config = self._model.config
         self.model.eval()
         if tie_weights:

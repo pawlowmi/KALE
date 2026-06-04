@@ -85,15 +85,18 @@ dispatch() {
     local SESSION="eval-${TAG}-$(echo "$TASKS" | tr ',+' '-')"
     local LOG="/mnt/data/eval_results/eval_${TAG}_$(echo "$TASKS" | tr ',+' '-').log"
 
-    echo "  GPU $GPU | $SESSION | $TASKS"
+    local TASK_BS=$BS
+
+    echo "  GPU $GPU | $SESSION | $TASKS (bs=$TASK_BS)"
     tmux kill-session -t "$SESSION" 2>/dev/null || true
     tmux new-session -d -s "$SESSION"
     tmux send-keys -t "$SESSION" "
 conda activate myenv && cd /mnt/data/code/KUEA
 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python CUDA_HOME=$CUDA_HOME CUDA_VISIBLE_DEVICES=$GPU \
+OMP_NUM_THREADS=24 MKL_NUM_THREADS=24 \
 python -m lmms_eval --model llava \
     --model_args 'pretrained=${MERGED_PATH},conv_template=vicuna_v1' \
-    --tasks '$TASKS' --batch_size $BS \
+    --tasks '$TASKS' --batch_size $TASK_BS \
     --output_path '$SAVE_DIR/$LORA_NAME' \
 2>&1 | tee '$LOG' && echo DONE_SENTINEL
 " Enter
