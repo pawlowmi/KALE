@@ -17,7 +17,7 @@ DEVICES=0,1,2,3,4,5,6,7
 TRAIN_SCRIPT=/mnt/data/code/KUEA/scripts/run_align_cc12m.sh
 EVAL_SCRIPT=/mnt/data/code/KUEA/scripts/run_eval_checkpoints.sh
 EXPERIMENTS_DIR=${EXPERIMENTS_DIR:-/mnt/data/experiments}
-EVAL_BASE=${EVAL_BASE:-/mnt/data/eval_results}
+EVAL_BASE=${EVAL_BASE:-${EXPERIMENTS_DIR/experiments/eval_results}}
 EVAL_N=8
 
 # Define experiments: "BS PW EPOCHS WARMUP_PCT LR DYNAMIC_PW DYNAMIC_PW_TARGET"
