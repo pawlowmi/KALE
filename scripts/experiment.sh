@@ -47,7 +47,7 @@ run_training() {
 
 find_latest_experiment() {
     local pw=$1 epochs=$2 bs=$3 lr=$4
-    ls -td "$EXPERIMENTS_DIR"/ViT-L-14_openai_cc12m_l2_${epochs}epochs_bs${bs}_pw${pw}_lr${lr}_cc12m-3m_* 2>/dev/null | head -1
+    ls -td "$EXPERIMENTS_DIR"/ViT-L-14_openai_cc12m_l2_${epochs}epochs_bs${bs}_pw${pw}*_lr${lr}_cc12m-3m_* 2>/dev/null | head -1
 }
 
 run_evaluation() {
