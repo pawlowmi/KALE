@@ -36,6 +36,7 @@ DYNAMIC_PW=${DYNAMIC_PW:-0}
 DYNAMIC_PW_TARGET=${DYNAMIC_PW_TARGET:-0.5}
 DYNAMIC_PW_COSINE_DECAY=${DYNAMIC_PW_COSINE_DECAY:-False}
 CW=${CW:-1.0}
+LR_MIN_PCT=${LR_MIN_PCT:-10}
 OUTPUT_DIR=${OUTPUT_DIR:-/mnt/data/experiments/}
 DRIFT_FREQ=${DRIFT_FREQ:-100}
 BF16=${BF16:-True}
@@ -70,14 +71,14 @@ fi
     --vision_model dino \
     --dataset cc12m \
     $MODE_FLAGS \
-    --eval_root /mnt/data/datasets/imagenet \
+    --eval_root /mnt/ramdisk/ \
     --template std \
     --output_normalize False \
     --loss l2 \
     --loss_clean l2 \
     --opt adamw \
     --lr $LR \
-    --lr_min_pct 10 \
+    --lr_min_pct $LR_MIN_PCT \
     --wd 1e-4 \
     --inner_loss l2 \
     --wandb False \
@@ -92,7 +93,7 @@ fi
     --kernel_clip polynomial \
     --gamma 0.0032 \
     --coef0 0.191623 \
-    --experiment_name cc12m-3m \
+    --experiment_name "cc12m-3m-cap-lr-$LR_MIN_PCT" \
     --log_freq 1 \
     --eval_freq 1000 \
     --dataloader_num_workers 16 \
