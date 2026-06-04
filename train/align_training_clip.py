@@ -89,7 +89,7 @@ def main(args):
     # setup dirs
     if args.overwrite:
         shutil.rmtree(args.output_dir, ignore_errors=True)
-    os.makedirs(os.path.join(args.output_dir, 'checkpoints'), exist_ok=False)
+    os.makedirs(os.path.join(args.output_dir, "checkpoints"), exist_ok=False)
 
     # write args to file
     with open(os.path.join(args.output_dir, 'args.txt'), 'w') as f:
@@ -584,7 +584,7 @@ if __name__ == '__main__':
 
     # set model name and output dir
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
-    args.finetuned_model_name = f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_{args.dataset}_{args.experiment_name}_{random_str}'
+    args.finetuned_model_name = f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_{args.steps}steps_{args.experiment_name}_{random_str}'
     args.finetuned_model_name = args.finetuned_model_name.replace('/', '_')
     args.output_dir = os.path.join(args.output_dir, args.finetuned_model_name)
     # run
