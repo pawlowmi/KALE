@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='imagenet')
     parser.add_argument('--template', type=str, default='std')
     parser.add_argument('--imagenet_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
+    parser.add_argument('--eval_root', type=str, default='', help='Root for eval dataset (default: imagenet_root)')
     parser.add_argument('--imagenet21k_root', type=str, default='/mnt/datasets/imagenet', help='Imagenet dataset root directory')
     parser.add_argument('--cc12m_shards', type=str, default='', help='CC12M webdataset shards directory')
     parser.add_argument('--n_train_samples', type=int, default=0, help='Subsample training set to N samples (0 = use all)')
@@ -31,6 +32,7 @@ def parse_args():
     parser.add_argument('--opt', type=str, default='adamw', help='Optimizer type; sgd, adamw')
     parser.add_argument('--momentum_sgd', type=float, default=0.9, help='Momentum for SGD optimizer')
     parser.add_argument('--lr', type=float, default=1e-5, help='Learning rate')
+    parser.add_argument('--lr_min_pct', type=float, default=10.0, help='Minimum LR as percentage of peak LR')
     parser.add_argument('--wd', type=float, default=1e-4, help='Weight decay')
     parser.add_argument('--trades', type=str2bool, default=False, help='Use TRADES')
 
@@ -39,6 +41,8 @@ def parse_args():
     parser.add_argument('--loss_clean', type=str, default='none', help='cosine, ce, l2')
     parser.add_argument('--inner_loss', type=str, default='l2', help='Inner loss function for adversarial training')
     parser.add_argument('--penalty_weight', type=float, default=1, help='Weight for penalty loss')
+    parser.add_argument('--dynamic_pw', type=int, default=0, help='Update penalty_weight every N steps to match target ratio (0=disabled)')
+    parser.add_argument('--dynamic_pw_target_ratio', type=float, default=0.5, help='Target ratio of effective alignment to effective clean loss')
     parser.add_argument('--clean_weight', type=float, default=1, help='Weight for clean loss')
 
     # Kernel
@@ -65,6 +69,7 @@ def parse_args():
     # Output
     parser.add_argument('--output_dir', type=str, default='', help='Output directory')
     parser.add_argument('--overwrite', type=str2bool, default=False, help='Overwrite existing directory')
+    parser.add_argument('--resume', type=str, default='', help='Path to experiment dir to resume from (auto-loads latest checkpoint)')
     parser.add_argument('--save_checkpoints', type=str2bool, default=True, help='Save 10 training checkpoints')
 
     # Device

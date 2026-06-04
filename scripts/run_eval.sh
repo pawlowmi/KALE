@@ -49,9 +49,11 @@ fi
 cd /mnt/data/code/KUEA/CLIP_benchmark
 export PYTHONPATH="/mnt/data/code/KUEA":"${PYTHONPATH}"
 
-# Generate models.txt with the model to evaluate
-echo "${MODEL},${CHECKPOINT}" > benchmark/models.txt
+# Generate unique models.txt per session to avoid race conditions
+MODELS_FILE=$(mktemp benchmark/models_XXXXXX.txt)
+echo "${MODEL},${CHECKPOINT}" > "$MODELS_FILE"
 echo "Evaluating: ${MODEL},${CHECKPOINT}"
+echo "Models file: $MODELS_FILE"
 
 mkdir -p "$SAVE_DIR"
 
@@ -64,7 +66,7 @@ if echo "$TASKS" | grep -q "zeroshot"; then
     /home/ec2-user/miniconda3/envs/myenv/bin/python -m clip_benchmark.cli eval \
         --dataset_root "$DATASET_ROOT" \
         --dataset benchmark/datasets.txt \
-        --pretrained_model benchmark/models.txt \
+        --pretrained_model "$MODELS_FILE" \
         --output "${SAVE_DIR}/zeroshot_{model}_{pretrained}_{dataset}.json" \
         --attack none --eps 1 \
         --batch_size $BS --n_samples -1
@@ -78,7 +80,7 @@ if echo "$TASKS" | grep -q "lp"; then
         --dataset_root "$DATASET_ROOT" \
         --dataset benchmark/datasets_lp.txt \
         --task linear_probe \
-        --pretrained_model benchmark/models.txt \
+        --pretrained_model "$MODELS_FILE" \
         --output "${SAVE_DIR}/lp_{model}_{pretrained}_{dataset}.json" \
         --attack none --eps 1 \
         --batch_size $BS --n_samples -1
@@ -93,7 +95,7 @@ if echo "$TASKS" | grep -q "retrieval"; then
         --dataset benchmark/datasets_rt.txt \
         --task zeroshot_retrieval \
         --recall_k 1 5 10 \
-        --pretrained_model benchmark/models.txt \
+        --pretrained_model "$MODELS_FILE" \
         --output "${SAVE_DIR}/retrieval_{model}_{pretrained}_{dataset}.json" \
         --attack none --eps 1 \
         --batch_size $BS --n_samples -1
@@ -104,3 +106,6 @@ minutes=$(( (SECONDS % 3600) / 60 ))
 echo ""
 echo "=== Done. Results saved to ${SAVE_DIR} ==="
 echo "[Runtime] ${hours}h ${minutes}min"
+
+# Cleanup
+rm -f "$MODELS_FILE"

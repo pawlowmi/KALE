@@ -27,12 +27,34 @@ from train.utils import init_wandb, AverageMeter, compute_text_embeddings
 from CLIP_eval.eval_utils import load_clip_model
 
 
-def setup_output_dir(output_dir, overwrite, args):
+def setup_output_dir(output_dir, overwrite, args, resume=False):
+    if resume:
+        assert os.path.isdir(output_dir), f'Resume dir not found: {output_dir}'
+        return
     if overwrite:
         shutil.rmtree(output_dir, ignore_errors=True)
     os.makedirs(os.path.join(output_dir, 'checkpoints'), exist_ok=False)
     with open(os.path.join(output_dir, 'args.txt'), 'w') as f:
         f.write(str(args))
+
+
+def find_latest_checkpoint(checkpoint_dir):
+    """Find the latest checkpoint in a directory by step number."""
+    import re
+    best_step = -1
+    best_model = None
+    best_opt = None
+    for f in os.listdir(checkpoint_dir):
+        # Match fallback_STEP.pt or step_STEP.pt
+        m = re.match(r'(?:fallback|step)_(\d+)\.pt$', f)
+        if m:
+            step = int(m.group(1))
+            opt_path = os.path.join(checkpoint_dir, f.replace('.pt', '_opt.pt'))
+            if step > best_step and os.path.exists(opt_path):
+                best_step = step
+                best_model = os.path.join(checkpoint_dir, f)
+                best_opt = opt_path
+    return best_step, best_model, best_opt
 
 
 def build_imagenet_text_embeddings(clip_model, tokenizer, template_name, device=0):
@@ -72,14 +94,16 @@ def main(args):
 
     tb_writer = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tensorboard'))
     csv_log_path = os.path.join(args.output_dir, 'train_log.csv')
-    with open(csv_log_path, 'w') as f:
-        header = 'step,lr,loss,loss_total,cos_sim,acc,eval_acc'
-        if args.enhanced_metrics:
-            header += ',mean_above_thresh,ratio_above_thresh,ratio_below_thresh,masked_loss'
-        f.write(header + '\n')
+    resuming = bool(args.resume)
+    if not resuming:
+        with open(csv_log_path, 'w') as f:
+            header = 'step,lr,loss,loss_total,cos_sim,acc,eval_acc'
+            if args.enhanced_metrics:
+                header += ',mean_above_thresh,ratio_above_thresh,ratio_below_thresh,masked_loss'
+            f.write(header + '\n')
 
     print_args(args)
-    setup_output_dir(args.output_dir, args.overwrite, args)
+    setup_output_dir(args.output_dir, args.overwrite, args, resume=resuming)
 
     # get models
     model_orig, preprocessor_without_normalize, normalize, tokenizer = load_clip_orig(args.clip_model_name)
@@ -95,27 +119,32 @@ def main(args):
 
     # get data
     dl_workers = args.dataloader_num_workers * max(num_gpus, 1)
+    eval_root = args.eval_root if args.eval_root else args.imagenet_root
     if args.dataset == 'cc12m':
-        assert args.cc12m_shards, '--cc12m_shards required for cc12m dataset'
-        assert not args.precomputed_dir, 'Precomputed embeddings not supported with cc12m'
-        n_samples = args.n_train_samples if args.n_train_samples > 0 else None
-        dataloader = create_cc12m_dataloader(
-            shards_dir=args.cc12m_shards, transform=preprocessor_without_normalize,
-            batch_size=args.batch_size, n_samples=n_samples,
-            num_workers=dl_workers, seed=0
-        )
-        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
-        dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+        if args.cc12m_shards:
+            assert not args.precomputed_dir, 'Precomputed embeddings not supported with live cc12m'
+            n_samples = args.n_train_samples if args.n_train_samples > 0 else None
+            dataloader = create_cc12m_dataloader(
+                shards_dir=args.cc12m_shards, transform=preprocessor_without_normalize,
+                batch_size=args.batch_size, n_samples=n_samples,
+                num_workers=dl_workers, seed=0
+            )
+        elif args.precomputed_dir:
+            dataset = IndexedImageFolder(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
+            dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
+        else:
+            dataset = ImageNetDataset(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
+            dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
     elif args.dataset == 'imagenet':
         if args.precomputed_dir:
             dataset = IndexedImageFolder(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
         else:
             dataset = ImageNetDataset(root=args.imagenet_root + '/train', transform=preprocessor_without_normalize)
-        dataset_eval = ImageNetDataset(root=args.imagenet_root + '/val', transform=preprocessor_without_normalize)
         dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
-        dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
     else:
         raise ValueError(f'Unsupported dataset: {args.dataset}')
+    dataset_eval = ImageNetDataset(root=eval_root + '/val', transform=preprocessor_without_normalize)
+    dataloader_eval = DataLoader(dataset_eval, batch_size=args.batch_size, shuffle=True, num_workers=dl_workers, drop_last=True, pin_memory=True, persistent_workers=dl_workers > 0, prefetch_factor=args.prefetch_factor if dl_workers > 0 else None)
 
     embedding_text_labels_norm = build_imagenet_text_embeddings(
         model_orig, tokenizer, args.template
@@ -188,7 +217,18 @@ def main(args):
         )
     else:
         raise ValueError(f'Optimizer {args.optimizer} not supported.')
-    if args.optimizer_state != '':
+
+    # Resume from checkpoint
+    if resuming:
+        ckpt_dir = os.path.join(args.output_dir, 'checkpoints')
+        resume_step, resume_model, resume_opt = find_latest_checkpoint(ckpt_dir)
+        assert resume_step >= 0, f'No checkpoint found in {ckpt_dir}'
+        print(f'Resuming from step {resume_step}: {resume_model}', flush=True)
+        unwrap_model(model).model.load_state_dict(torch.load(resume_model, map_location='cpu'))
+        model.cuda()
+        optimizer.load_state_dict(torch.load(resume_opt, map_location='cpu'))
+        args.start_step = resume_step
+    elif args.optimizer_state != '':
         optimizer.load_state_dict(torch.load(args.optimizer_state))
 
     # set scheduler
@@ -204,7 +244,16 @@ def main(args):
         warmup_steps = int(args.steps * args.warmup_pct / 100)
     print(f'Warmup: {warmup_steps} steps ({warmup_steps * 100 / args.steps:.1f}% of {args.steps})')
 
-    scheduler = cosine_lr(optimizer, args.lr, warmup_steps, args.steps)
+    lr_min = args.lr * args.lr_min_pct / 100
+    _base_scheduler = cosine_lr(optimizer, args.lr, warmup_steps, args.steps)
+
+    def scheduler(step):
+        _base_scheduler(step)
+        for param_group in optimizer.param_groups:
+            if param_group['lr'] < lr_min:
+                param_group['lr'] = lr_min
+
+    print(f'LR schedule: 0 -> {args.lr} (warmup) -> {lr_min} (cosine, min {args.lr_min_pct}%)')
 
     total_epochs = args.steps / len(dataloader)
     print(f'train for {total_epochs:.2f} epochs')
@@ -213,6 +262,14 @@ def main(args):
     # finetune
     step_total = args.start_step
     epoch = 0
+
+    dynamic_pw = None
+    if args.dynamic_pw > 0:
+        dynamic_pw = DynamicPenaltyWeight(
+            update_every=args.dynamic_pw,
+            target_ratio=args.dynamic_pw_target_ratio,
+            initial_pw=args.penalty_weight
+        )
     while step_total < args.steps:
         step_total = train_one_epoch(
             step_total,
@@ -229,6 +286,8 @@ def main(args):
             normalize=normalize,
             args=args,
             epoch=epoch,
+            warmup_steps=warmup_steps,
+            dynamic_pw=dynamic_pw,
             tb_writer=tb_writer,
             precomputed_orig=precomputed_orig,
             precomputed_dino=precomputed_dino,
@@ -252,7 +311,7 @@ def main(args):
 
 def train_one_epoch(
         step_total, model, model_orig, model_dino, projector_clip, band_dino, dataloader, optimizer, scheduler, normalize,
-        embedding_text_labels_norm, args, epoch, dataloader_eval=None, tb_writer=None,
+        embedding_text_labels_norm, args, epoch, warmup_steps, dynamic_pw=None, dataloader_eval=None, tb_writer=None,
         precomputed_orig=None, precomputed_dino=None, csv_log_path=None
 ):
     if model_orig is not None:
@@ -264,6 +323,10 @@ def train_one_epoch(
     eval_iter = _cycle_eval() if dataloader_eval is not None else None
 
     loss_meter = AverageMeter('loss')
+    loss_ema = None
+    loss_initial = None
+    loss_initial_buf = []
+    ema_decay = 0.99
     cos_sim_meter = AverageMeter('cos-sim')
     acc_meter = AverageMeter('acc')
 
@@ -328,7 +391,16 @@ def train_one_epoch(
             with torch.no_grad():
                 sparsity_metrics = compute_kernel_sparsity(diff_sq, threshold=args.lam)
         loss = torch.mean(diff_sq)
-        loss_total = args.clean_weight * loss_clean + args.penalty_weight * loss
+        with torch.no_grad():
+            current_pw = args.penalty_weight
+            if dynamic_pw is not None:
+                current_pw = dynamic_pw.step(
+                    step_total, loss.item(), loss_clean.item(), args.clean_weight, warmup_steps
+                )
+            eff_align = current_pw * loss.item()
+            eff_clean = args.clean_weight * loss_clean.item()
+            loss_ratio = eff_align / eff_clean if eff_clean > 0 else 0.0
+        loss_total = args.clean_weight * loss_clean + current_pw * loss
 
         loss_total.backward()
         optimizer.step()
@@ -348,6 +420,12 @@ def train_one_epoch(
                 acc = None
 
         loss_meter.update(loss.item(), n_samples)
+        if loss_initial is None and step_total > warmup_steps:
+            loss_initial_buf.append(loss.item())
+            if len(loss_initial_buf) >= 50:
+                loss_initial = sum(loss_initial_buf) / len(loss_initial_buf)
+        loss_ema = loss.item() if loss_ema is None else ema_decay * loss_ema + (1 - ema_decay) * loss.item()
+        loss_ema_pct = loss_ema / loss_initial if loss_initial and loss_initial > 0 else 1.0
         cos_sim_meter.update(cos_sim_clean.item(), n_samples)
 
         eval_logs = dict()
@@ -384,11 +462,16 @@ def train_one_epoch(
                 'step': step_total,
                 'lr': lr_,
                 'loss': loss.item(),
+                'loss_clean': loss_clean.item(),
                 'loss-total': loss_total.item(),
+                'loss_ratio': loss_ratio,
+                'penalty_weight': current_pw,
                 'cos-sim-clean': cos_sim_clean.item(),
                 'acc': acc,
                 'avg/loss': loss_meter.avg,
                 'avg/acc': acc_meter.avg,
+                'loss_ema': loss_ema,
+                'loss_ema_pct': loss_ema_pct,
             }
             log_data.update(eval_logs)
             if args.enhanced_metrics:
@@ -413,11 +496,16 @@ def train_one_epoch(
             wandb.log(log_data)
             if tb_writer is not None:
                 tb_writer.add_scalar('train/loss', loss.item(), step_total)
+                tb_writer.add_scalar('train/loss_clean', loss_clean.item(), step_total)
                 tb_writer.add_scalar('train/loss_total', loss_total.item(), step_total)
+                tb_writer.add_scalar('train/loss_ratio', loss_ratio, step_total)
+                tb_writer.add_scalar('train/penalty_weight', current_pw, step_total)
                 tb_writer.add_scalar('train/lr', lr_, step_total)
                 if acc is not None:
                     tb_writer.add_scalar('train/acc', acc, step_total)
                 tb_writer.add_scalar('train/cos_sim', cos_sim_clean.item(), step_total)
+                tb_writer.add_scalar('train/loss_ema', loss_ema, step_total)
+                tb_writer.add_scalar('train/loss_ema_pct', loss_ema_pct, step_total)
                 if args.enhanced_metrics:
                     for k, v in sparsity_metrics.items():
                         tb_writer.add_scalar(k, v, step_total)
@@ -450,6 +538,47 @@ def train_one_epoch(
             break
 
     return step_total
+
+
+class DynamicPenaltyWeight:
+    """Dynamically adjusts penalty_weight to maintain a target ratio
+    of effective alignment loss to effective clean loss.
+
+    Uses EMA of both losses for stability, updates every N steps.
+    Target ratio = (pw * loss_kernel) / (cw * loss_clean)
+    Solving for pw: pw = target_ratio * cw * ema_clean / ema_kernel
+    """
+    def __init__(self, update_every, target_ratio, initial_pw, ema_decay=0.99):
+        self.update_every = update_every
+        self.target_ratio = target_ratio
+        self.pw = initial_pw
+        self.ema_decay = ema_decay
+        self.ema_kernel = None
+        self.ema_clean = None
+
+    def update_ema(self, loss_kernel, loss_clean):
+        if self.ema_kernel is None:
+            self.ema_kernel = loss_kernel
+            self.ema_clean = loss_clean
+        else:
+            self.ema_kernel = self.ema_decay * self.ema_kernel + (1 - self.ema_decay) * loss_kernel
+            self.ema_clean = self.ema_decay * self.ema_clean + (1 - self.ema_decay) * loss_clean
+
+    def step(self, step_total, loss_kernel, loss_clean, clean_weight, warmup_steps=0):
+        """Update EMA and optionally adjust pw. Returns current pw."""
+        self.update_ema(loss_kernel, loss_clean)
+        if step_total > warmup_steps and step_total > 0 and step_total % self.update_every == 0:
+            if self.ema_kernel > 0 and self.ema_clean > 0 and self.pw > 0:
+                current_ratio = self.pw * self.ema_kernel / (clean_weight * self.ema_clean)
+                if current_ratio > 0:
+                    correction = (self.target_ratio / current_ratio) ** 0.5
+                    self.pw = self.pw * correction
+                    print(f'[dynamic-pw] step={step_total} pw={self.pw:.4f} '
+                          f'ratio={current_ratio:.6f} target={self.target_ratio:.6f} '
+                          f'correction={correction:.4f} '
+                          f'ema_kernel={self.ema_kernel:.6f} ema_clean={self.ema_clean:.6f}',
+                          flush=True)
+        return self.pw
 
 
 def compute_kernel_sparsity(diff_matrix, threshold=1e-4):
@@ -544,10 +673,15 @@ if __name__ == '__main__':
         print(f'Batch size scaled: {original_bs} x {num_gpus} GPUs = {args.batch_size}')
 
     # set model name and output dir
-    random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
-    duration_str = f'{args.steps}steps' if args.steps > 0 else f'{args.epochs}epochs'
-    args.finetuned_model_name = f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_{duration_str}_bs{args.batch_size}_pw{args.penalty_weight}_{args.experiment_name}_{random_str}'
-    args.finetuned_model_name = args.finetuned_model_name.replace('/', '_')
-    args.output_dir = os.path.join(args.output_dir, args.finetuned_model_name)
+    if args.resume:
+        args.output_dir = args.resume
+        args.finetuned_model_name = os.path.basename(args.resume)
+    else:
+        random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
+        duration_str = f'{args.steps}steps' if args.steps > 0 else f'{args.epochs}epochs'
+        dpw_str = f'_dpw{args.dynamic_pw}' if args.dynamic_pw > 0 else ''
+        args.finetuned_model_name = f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_{duration_str}_bs{args.batch_size}_pw{args.penalty_weight}{dpw_str}_lr{args.lr}_{args.experiment_name}_{random_str}'
+        args.finetuned_model_name = args.finetuned_model_name.replace('/', '_')
+        args.output_dir = os.path.join(args.output_dir, args.finetuned_model_name)
     # run
     main(args)
