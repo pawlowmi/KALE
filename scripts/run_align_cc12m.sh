@@ -67,7 +67,7 @@ fi
     --vision_model dino \
     --dataset cc12m \
     $MODE_FLAGS \
-    --eval_root /mnt/ramdisk \
+    --eval_root /mnt/data/datasets/imagenet \
     --template std \
     --output_normalize False \
     --loss l2 \
