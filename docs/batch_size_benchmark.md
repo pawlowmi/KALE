@@ -28,3 +28,16 @@ forward+backward, not memory bandwidth or kernel compute.
 leaves headroom for NCCL buffers in DDP, and avoids quadratic kernel matrix growth.
 
 With 8× H100s at bs=128: **effective batch = 1024, ~500 samp/s total**.
+
+## Why throughput is flat
+
+The 63.0–63.7 samp/s spread (1%) is measurement noise, not a real difference.
+
+**Gradient checkpointing** is the cause. It recomputes the full ViT forward pass during
+backward regardless of batch size, so compute per sample is constant and time scales
+linearly with batch size. The GPU is already fully saturated at bs=128 (100% utilization),
+leaving no room to gain efficiency from larger batches.
+
+Without gradient checkpointing, throughput would increase with batch size up to a memory
+limit — larger batches let the GPU better hide memory latency. But with checkpointing the
+recomputation dominates and erases that effect entirely.
