@@ -27,6 +27,7 @@ from train.cc12m_dataset import create_cc12m_dataloader
 from train.models import ClipVisionModel, load_clip_orig, load_vision_model, wrap_vision_model
 from train.utils import init_wandb, AverageMeter, compute_text_embeddings
 from train.metrics import ClipDriftMetric
+from train.naming import make_experiment_name
 from CLIP_eval.eval_utils import load_clip_model
 
 
@@ -719,15 +720,16 @@ if __name__ == '__main__':
         args.output_dir = args.resume
         args.finetuned_model_name = os.path.basename(args.resume)
     else:
-        random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=5))
-        duration_str = f'{args.steps}steps' if args.steps > 0 else f'{args.epochs}epochs'
-        dpw_str = f'_dpw{args.dynamic_pw}_t{args.dynamic_pw_target_ratio}{"_cd" + str(args.dynamic_pw_target_ratio_min) if args.dynamic_pw_cosine_decay else ""}' if args.dynamic_pw > 0 else ''
         eff_bs = args.batch_size * world_size
-        args.finetuned_model_name = (
-            f'{args.clip_model_name}_{args.pretrained}_{args.dataset}_{args.loss}_'
-            f'{duration_str}_bs{eff_bs}_pw{args.penalty_weight}{dpw_str}_'
-            f'lr{args.lr}_{args.experiment_name}_{random_str}'
-        ).replace('/', '_')
+        args.finetuned_model_name = make_experiment_name(
+            clip_model_name=args.clip_model_name, pretrained=args.pretrained,
+            dataset=args.dataset, loss=args.loss, steps=args.steps, epochs=args.epochs,
+            batch_size=eff_bs, penalty_weight=args.penalty_weight, lr=args.lr,
+            experiment_name=args.experiment_name, dynamic_pw=args.dynamic_pw,
+            dynamic_pw_target_ratio=args.dynamic_pw_target_ratio,
+            dynamic_pw_cosine_decay=args.dynamic_pw_cosine_decay,
+            dynamic_pw_target_ratio_min=getattr(args, 'dynamic_pw_target_ratio_min', None),
+        )
         args.output_dir = os.path.join(args.output_dir, args.finetuned_model_name)
 
     main(args, rank, local_rank, world_size)

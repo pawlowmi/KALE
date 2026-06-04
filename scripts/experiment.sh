@@ -27,8 +27,8 @@ BF16=${BF16:-True}
 EXPERIMENTS=(
     "128 0.5 8 8 4e-5 100 0.8 False"
     "128 0.5 8 8 4e-5 100 1.0 False"
-    "128 0.5 8 8 4e-5 100 0.8 True"
     "128 0.5 8 8 4e-5 100 1.0 True"
+    "128 0.5 8 8 4e-5 100 0.8 True"
 )
 
 # ── Functions ────────────────────────────────────────────────────────────────
@@ -49,8 +49,13 @@ run_training() {
 }
 
 find_latest_experiment() {
-    local pw=$1 epochs=$2 bs=$3 lr=$4
-    ls -td "$EXPERIMENTS_DIR"/ViT-L-14_openai_cc12m_l2_${epochs}epochs_bs${bs}_pw${pw}*_lr${lr}_cc12m-3m_* 2>/dev/null | head -1
+    local pw=$1 epochs=$2 bs=$3 lr=$4 dynamic_pw=$5 dynamic_pw_target=$6 cosine_decay=$7
+    local pattern
+    pattern=$(python -m train.naming_cli --dataset cc12m --loss l2 --epochs "$epochs" \
+        --batch_size "$bs" --penalty_weight "$pw" --lr "$lr" --experiment_name cc12m-3m \
+        --dynamic_pw "$dynamic_pw" --dynamic_pw_target_ratio "$dynamic_pw_target" \
+        --dynamic_pw_cosine_decay "$cosine_decay")
+    ls -td "$EXPERIMENTS_DIR"/$pattern 2>/dev/null | head -1
 }
 
 run_evaluation() {
@@ -101,7 +106,7 @@ for i in "${!EXPERIMENTS[@]}"; do
 
     run_training "$bs" "$pw" "$epochs" "$warmup_pct" "$lr" "$dynamic_pw" "$dynamic_pw_target" "$cosine_decay"
 
-    exp_dir=$(find_latest_experiment "$pw" "$epochs" "$((bs * 8))" "$lr")
+    exp_dir=$(find_latest_experiment "$pw" "$epochs" "$((bs * 8))" "$lr" "$dynamic_pw" "$dynamic_pw_target" "$cosine_decay")
     echo "Experiment dir: $exp_dir"
     COMPLETED_DIRS+=("$exp_dir")
 
