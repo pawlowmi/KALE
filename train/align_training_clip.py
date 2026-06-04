@@ -361,6 +361,16 @@ def main(args, rank, local_rank, world_size):
     dynamic_pw = None
     if args.dynamic_pw > 0:
         dynamic_pw = DynamicPenaltyWeight(args.dynamic_pw, args.dynamic_pw_target_ratio, args.penalty_weight)
+        if resuming:
+            dpw_path = os.path.join(args.output_dir, 'checkpoints', 'dynamic_pw.json')
+            if os.path.exists(dpw_path):
+                import json
+                state = json.load(open(dpw_path))
+                dynamic_pw.pw = state['pw']
+                dynamic_pw.ema_kernel = state.get('ema_kernel')
+                dynamic_pw.ema_clean = state.get('ema_clean')
+                if is_main():
+                    print(f'Restored dynamic_pw: pw={dynamic_pw.pw:.4f}', flush=True)
 
     step_total = args.start_step
     epoch = 0
@@ -641,6 +651,11 @@ def train_one_epoch(
                            f'{args.output_dir}/checkpoints/fallback_{step_total}.pt')
                 torch.save(optimizer.state_dict(),
                            f'{args.output_dir}/checkpoints/fallback_{step_total}_opt.pt')
+                if dynamic_pw is not None:
+                    import json
+                    json.dump({'pw': dynamic_pw.pw, 'ema_kernel': dynamic_pw.ema_kernel,
+                               'ema_clean': dynamic_pw.ema_clean},
+                              open(f'{args.output_dir}/checkpoints/dynamic_pw.json', 'w'))
                 for f_name in os.listdir(f'{args.output_dir}/checkpoints'):
                     if f_name.startswith('fallback') and str(step_total) not in f_name:
                         os.remove(f'{args.output_dir}/checkpoints/{f_name}')
